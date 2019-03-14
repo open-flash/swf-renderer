@@ -1,37 +1,62 @@
 {
   "name": "swf-renderer",
   "version": "0.0.1",
-  "description": "SWF renderer inspired by Shumway",
+  "homepage": "https://github.com/open-flash/swf-renderer",
+  "description": "Level renderer",
+  "main": "dist/lib/index",
+  "types": "dist/lib/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com:open-flash/swf-renderer.git"
+  },
   "private": true,
+  "scripts": {
+    "prepare": "gulp all:tsconfig.json && gulp :tslint.json && gulp lib:dist",
+    "prepublishOnly": "npm test",
+    "start": "npm test",
+    "pretest": "gulp :lint && gulp lib:build",
+    "test": "gulp test",
+    "lint": "gulp :lint:fix",
+    "pre-commit": "gulp :lint && gulp test:build && gulp test:run:esm"
+  },
+  "pre-commit": {
+    "run": [
+      "pre-commit"
+    ]
+  },
   "keywords": [],
   "license": "MIT",
-  "scripts": {
-    "prepare": "gulp all:tsconfig.json && gulp :tslint.json && gulp all:dist",
-    "test": "gulp :lint && gulp lib-test",
-    "prestart": "gulp main:build",
-    "start": "node build/main/main/main.js",
-    "prepublishOnly": "npm test",
-    ":lint": "gulp :lint"
-  },
   "dependencies": {
-    "@types/left-pad": "^1.1.1",
-    "bluebird": "^3.5.0",
-    "canvas": "^1.6.5",
-    "gl": "^4.0.4",
-    "incident": "^2.0.0",
-    "kryo": "^0.5.0-alpha.5",
-    "left-pad": "^1.1.3",
+    "canvas": "^2.4.0",
+    "furi": "^1.3.0",
+    "gl": "^4.2.2",
+    "incident": "^3.2.0",
+    "object-inspect": "^1.6.0",
+    "rxjs": "^6.4.0",
     "semantic-types": "^0.1.1",
-    "swf-tree": "0.0.3"
+    "swf-tree": "^0.2.0"
   },
   "devDependencies": {
-    "@types/chai": "^3.4.35",
-    "@types/mocha": "^2.2.40",
-    "@types/node": "^7.0.12",
-    "chai": "^3.5.0",
-    "demurgos-web-build-tools": "^0.14.1",
-    "gulp": "github:gulpjs/gulp#4.0",
-    "tslint": "^5.4.3",
-    "typescript": "^2.2.2"
+    "@types/chai": "^4.1.7",
+    "@types/gulp": "^4.0.6",
+    "@types/minimist": "^1.2.0",
+    "@types/mocha": "^5.2.6",
+    "@types/pixelmatch": "^4.0.0",
+    "chai": "^4.2.0",
+    "gulp": "^4.0.0",
+    "kryo": "^0.8.1",
+    "minimist": "^1.2.0",
+    "pixelmatch": "^4.0.2",
+    "pre-commit": "^1.2.2",
+    "ts-node": "^8.0.3",
+    "tslint": "^5.14.0",
+    "turbo-gulp": "^0.18.0",
+    "typescript": "^3.3.3333"
+  },
+  "c88": {
+    "match": [
+      "build/test/lib/*.{js,mjs}",
+      "build/test/lib/**/*.{js,mjs}"
+    ]
   }
 }

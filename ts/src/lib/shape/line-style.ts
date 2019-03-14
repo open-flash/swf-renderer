@@ -1,11 +1,11 @@
-import {StraightSRgba} from "semantic-types";
+import { StraightSRgba } from "semantic-types";
 
-export enum LineType {
+export enum LineStyleType {
   Solid,
 }
 
 export interface SolidLine {
-  readonly type: LineType.Solid;
+  readonly type: LineStyleType.Solid;
   readonly color: Readonly<StraightSRgba<number>>;
   readonly width: number;
 }

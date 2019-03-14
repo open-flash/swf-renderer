@@ -1,0 +1,118 @@
+{
+  "type": "define-shape",
+  "id": 1,
+  "bounds": {
+    "x_min": 380,
+    "x_max": 10420,
+    "y_min": 820,
+    "y_max": 7159
+  },
+  "has_fill_winding": false,
+  "has_non_scaling_strokes": false,
+  "has_scaling_strokes": false,
+  "shape": {
+    "initial_styles": {
+      "fill": [
+        {
+          "type": "solid",
+          "color": {
+            "r": 255,
+            "g": 0,
+            "b": 0,
+            "a": 255
+          }
+        },
+        {
+          "type": "solid",
+          "color": {
+            "r": 0,
+            "g": 0,
+            "b": 255,
+            "a": 255
+          }
+        },
+        {
+          "type": "solid",
+          "color": {
+            "r": 0,
+            "g": 255,
+            "b": 0,
+            "a": 255
+          }
+        },
+        {
+          "type": "solid",
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 0,
+            "a": 255
+          }
+        },
+        {
+          "type": "solid",
+          "color": {
+            "r": 51,
+            "g": 102,
+            "b": 153,
+            "a": 255
+          }
+        }
+      ],
+      "line": [
+        {
+          "width": 20,
+          "start_cap": "round",
+          "end_cap": "round",
+          "join": {
+            "type": "round"
+          },
+          "no_h_scale": false,
+          "no_v_scale": false,
+          "no_close": false,
+          "pixel_hinting": false,
+          "fill": {
+            "type": "solid",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 255
+            }
+          }
+        }
+      ]
+    },
+    "records": [
+      {
+        "type": "style-change",
+        "move_to": {
+          "x": 380,
+          "y": 6839
+        },
+        "left_fill": 5
+      },
+      {
+        "type": "straight-edge",
+        "delta": {
+          "x": 10040,
+          "y": 320
+        }
+      },
+      {
+        "type": "straight-edge",
+        "delta": {
+          "x": -6540,
+          "y": -6339
+        }
+      },
+      {
+        "type": "straight-edge",
+        "delta": {
+          "x": -3500,
+          "y": 6019
+        }
+      }
+    ]
+  }
+}

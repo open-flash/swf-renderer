@@ -1,5 +1,5 @@
-import {FillStyle} from "./fill-style";
-import {LineStyle} from "./line-style";
+import { FillStyle } from "./fill-style";
+import { LineStyle } from "./line-style";
 
 export enum CommandType {
   LineTo,
@@ -31,9 +31,6 @@ export type Command = CurveTo | LineTo | MoveTo;
 
 export interface Path {
   readonly commands: Command[];
-}
-
-export interface PathWithStyle extends Path {
   readonly fill?: FillStyle;
   readonly line?: LineStyle;
 }

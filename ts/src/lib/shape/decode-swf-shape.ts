@@ -1,8 +1,45 @@
-import {StraightSRgba, UintSize} from "semantic-types";
-import {shapes, StraightSRgba8, tags} from "swf-tree";
-import {FillStyle, FillType} from "./fill-style";
-import {LineStyle, LineType} from "./line-style";
-import {Command, CommandType, PathWithStyle} from "./path";
+import { Incident } from "incident";
+import { StraightSRgba, UintSize } from "semantic-types";
+import {
+  FillStyle as SwfFillStyle,
+  FillStyleType as SwfFillStyleType,
+  LineStyle as SwfLineStyle,
+  shapeRecords,
+  ShapeRecordType,
+  StraightSRgba8,
+  tags,
+} from "swf-tree";
+import { Gradient as SwfGradient } from "swf-tree/gradient";
+import { FillStyle, FillStyleType } from "./fill-style";
+import { ColorStop, Gradient } from "./gradient";
+import { LineStyle, LineStyleType } from "./line-style";
+import { Command, CommandType, Path } from "./path";
+import { Shape } from "./shape";
+
+/**
+ * Converts a space-optimized shape definition to a list of simpler paths for easier processing/rendering
+ */
+export function decodeSwfShape(tag: tags.DefineShape): Shape {
+  const converter: SwfShapeDecoder = new SwfShapeDecoder(tag.shape.initialStyles.fill, tag.shape.initialStyles.line);
+
+  for (const record of tag.shape.records) {
+    switch (record.type) {
+      case ShapeRecordType.CurvedEdge:
+        converter.applyCurvedEdge(record);
+        break;
+      case ShapeRecordType.StraightEdge:
+        converter.applyStraightEdge(record);
+        break;
+      case ShapeRecordType.StyleChange:
+        converter.applyStyleChange(record);
+        break;
+      default:
+        throw new Incident("UnreachableCode");
+    }
+  }
+
+  return converter.getShape();
+}
 
 enum SegmentType {
   Straight,
@@ -47,12 +84,8 @@ function createCurvedSegment(
  */
 type Segment = StraightSegment | CurvedSegment;
 
-// TODO: Move this to another file
-export interface Shape {
-  paths: PathWithStyle[];
-}
-
-function normalizeStraightSRgba(color: StraightSRgba8): Readonly<StraightSRgba<number>> {
+// TODO: Move out of this module
+export function normalizeStraightSRgba(color: StraightSRgba8): Readonly<StraightSRgba<number>> {
   return {
     r: color.r / 255,
     g: color.g / 255,
@@ -61,22 +94,60 @@ function normalizeStraightSRgba(color: StraightSRgba8): Readonly<StraightSRgba<n
   };
 }
 
-function convertFillStyle(old: shapes.FillStyle): FillStyle {
-  switch (old.type) {
-    case shapes.FillStyleType.Solid:
-      return {type: FillType.Solid, color: normalizeStraightSRgba(old.color)};
+function decodeGradient(swfGradient: SwfGradient): Gradient {
+  const colors: ColorStop[] = [];
+  for (const colorStop of swfGradient.colors) {
+    colors.push({ratio: colorStop.ratio / 0xff, color: normalizeStraightSRgba(colorStop.color)});
+  }
+  return {...swfGradient, colors};
+}
+
+/**
+ * Normalize the fill style from the SWF format to the renderer format
+ */
+function decodeFillStyle(swfStyle: SwfFillStyle): FillStyle {
+  switch (swfStyle.type) {
+    case SwfFillStyleType.Bitmap:
+      return {...swfStyle, type: FillStyleType.Bitmap};
+    case SwfFillStyleType.FocalGradient:
+      return {
+        type: FillStyleType.FocalGradient,
+        matrix: swfStyle.matrix,
+        gradient: decodeGradient(swfStyle.gradient),
+        focalPoint: swfStyle.focalPoint.valueOf(),
+      };
+    case SwfFillStyleType.LinearGradient:
+      return {type: FillStyleType.LinearGradient, matrix: swfStyle.matrix, gradient: decodeGradient(swfStyle.gradient)};
+    case SwfFillStyleType.RadialGradient:
+      return {
+        type: FillStyleType.FocalGradient,
+        matrix: swfStyle.matrix,
+        gradient: decodeGradient(swfStyle.gradient),
+        focalPoint: 0,
+      };
+    case SwfFillStyleType.Solid:
+      return {type: FillStyleType.Solid, color: normalizeStraightSRgba(swfStyle.color)};
     default:
-      console.warn(old);
-      throw new Error("Unknown fill type");
+      throw new Incident("UnknownFillStyle", {style: swfStyle});
   }
 }
 
-function convertLineStyle(old: shapes.LineStyle): LineStyle {
+/**
+ * Normalize the line style from the SWF format to the renderer format
+ */
+function decodeLineStyle(swfStyle: SwfLineStyle): LineStyle {
   // TODO...
-  return {type: LineType.Solid, color: {r: 0, g: 0, b: 0, a: 1}, width: 50};
+  return {type: LineStyleType.Solid, color: {r: 0, g: 0, b: 0, a: 1}, width: swfStyle.width};
 }
 
-// const defaultFillStyle: FillStyle = {type: FillType.Solid, color: "transparent"};
+/**
+ * Each change of style list creates a new records layer.
+ * For each record group, the fills are rendered first, and then the strokes.
+ */
+interface StyleLayer {
+  readonly fills: FillSegmentSet[];
+  readonly lines: LineSegmentSet[];
+}
 
 /**
  * For a given fill style, the corresponding segments in their order of definition.
@@ -95,29 +166,20 @@ interface LineSegmentSet {
 }
 
 /**
- * Each change of style list creates a new records layer.
- * For each record group, the fills are rendered first, and then the strokes.
- */
-interface StyleLayer {
-  readonly fills: FillSegmentSet[];
-  readonly lines: LineSegmentSet[];
-}
-
-/**
  * Create a new layer with the supplied styles.
  */
-function createStyleLayer(swfFillStyles: shapes.FillStyle[], swfLineStyles: shapes.LineStyle[]): StyleLayer {
+function createStyleLayer(swfFillStyles: SwfFillStyle[], swfLineStyles: SwfLineStyle[]): StyleLayer {
   const fills: FillSegmentSet[] = [];
   for (const swfFillStyle of swfFillStyles) {
     fills.push({
-      style: convertFillStyle(swfFillStyle),
+      style: decodeFillStyle(swfFillStyle),
       segments: [],
     });
   }
   const lines: LineSegmentSet[] = [];
   for (const swfLineStyle of swfLineStyles) {
     lines.push({
-      style: convertLineStyle(swfLineStyle),
+      style: decodeLineStyle(swfLineStyle),
       segments: [],
     });
   }
@@ -155,7 +217,8 @@ function extractContinuous(openSet: Segment[]): Segment[] {
       result.unshift(current);
     }
   }
-  // TODO: Repeat until reaching fixed point ?
+  // TODO: Repeat until reaching fixed point? Currently there are some cases when a continuous path is not collected
+  // if its segments are disordered.
   return result;
 }
 
@@ -163,7 +226,7 @@ function extractContinuous(openSet: Segment[]): Segment[] {
  * Converts a list of segments (in their definition order) to a list of path commands.
  */
 function segmentsToCommands(segments: Segment[]): Command[] {
-  const openSet: Segment[] = segments.map((x) => x);
+  const openSet: Segment[] = [...segments];
   const result: Command[] = [];
   while (openSet.length > 0) {
     const sequence: Segment[] = extractContinuous(openSet);
@@ -201,8 +264,8 @@ function segmentsToCommands(segments: Segment[]): Command[] {
 /**
  * Converts a layer to a list of paths with style
  */
-function layerToPaths(layer: StyleLayer): PathWithStyle[] {
-  const paths: PathWithStyle[] = [];
+function layerToPaths(layer: StyleLayer): Path[] {
+  const paths: Path[] = [];
   for (const fillSet of layer.fills) {
     const commands: Command[] = segmentsToCommands(fillSet.segments);
     if (commands.length > 0) {
@@ -218,7 +281,10 @@ function layerToPaths(layer: StyleLayer): PathWithStyle[] {
   return paths;
 }
 
-class SwfShapeConverter {
+/**
+ * Maintains the state of the decoder while it consumes shape records.
+ */
+class SwfShapeDecoder {
   /**
    * Each definition of new styles creates a layer.
    */
@@ -247,7 +313,7 @@ class SwfShapeConverter {
    */
   private y: number;
 
-  constructor(swfFillStyles: shapes.FillStyle[], swfLineStyles: shapes.LineStyle[]) {
+  constructor(swfFillStyles: SwfFillStyle[], swfLineStyles: SwfLineStyle[]) {
     this.x = 0;
     this.y = 0;
     this.layers = [];
@@ -257,23 +323,30 @@ class SwfShapeConverter {
     this.setNewStyles(swfFillStyles, swfLineStyles);
   }
 
-  applyStyleChange(record: shapes.records.StyleChange): void {
+  applyStyleChange(record: shapeRecords.StyleChange): void {
+    if (record.newStyles !== undefined) {
+      const newFills: SwfFillStyle[] = record.newStyles.fill;
+      const newLines: SwfLineStyle[] = record.newStyles.line;
+      this.setNewStyles(newFills, newLines);
+    }
     if (record.leftFill !== undefined) {
       this.setLeftFillById(record.leftFill);
     }
     if (record.rightFill !== undefined) {
       this.setRightFillById(record.rightFill);
     }
-    // In fact, it's an absolute moveTo (fixed in SWF tree 0.0.4)
-    if (record.deltaX !== 0 || record.deltaY !== 0) {
-      this.x = record.deltaX || 0;
-      this.y = record.deltaY || 0;
+    if (record.lineStyle !== undefined) {
+      this.setLineFillById(record.lineStyle);
+    }
+    if (record.moveTo !== undefined) {
+      this.x = record.moveTo.x;
+      this.y = record.moveTo.y;
     }
   }
 
-  applyStraightEdge(record: shapes.records.StraightEdge): void {
-    const endX: number = this.x + record.deltaX;
-    const endY: number = this.y + record.deltaY;
+  applyStraightEdge(record: shapeRecords.StraightEdge): void {
+    const endX: number = this.x + record.delta.x;
+    const endY: number = this.y + record.delta.y;
 
     if (this.leftFill !== undefined) {
       this.leftFill.segments.push(createStraightSegment(this.x, this.y, endX, endY));
@@ -289,11 +362,11 @@ class SwfShapeConverter {
     this.y = endY;
   }
 
-  applyCurvedEdge(record: shapes.records.CurvedEdge): void {
-    const controlX: number = this.x + record.controlX;
-    const controlY: number = this.y + record.controlY;
-    const endX: number = this.x + record.deltaX;
-    const endY: number = this.y + record.deltaY;
+  applyCurvedEdge(record: shapeRecords.CurvedEdge): void {
+    const controlX: number = this.x + record.controlDelta.x;
+    const controlY: number = this.y + record.controlDelta.y;
+    const endX: number = controlX + record.anchorDelta.x;
+    const endY: number = controlY + record.anchorDelta.y;
 
     if (this.leftFill !== undefined) {
       this.leftFill.segments.push(createCurvedSegment(this.x, this.y, controlX, controlY, endX, endY));
@@ -310,7 +383,7 @@ class SwfShapeConverter {
   }
 
   getShape(): Shape {
-    const paths: PathWithStyle[] = [];
+    const paths: Path[] = [];
     for (const layer of this.layers) {
       for (const path of layerToPaths(layer)) {
         paths.push(path);
@@ -319,7 +392,7 @@ class SwfShapeConverter {
     return {paths};
   }
 
-  private setNewStyles(swfFillStyles: shapes.FillStyle[], swfLineStyles: shapes.LineStyle[]): void {
+  private setNewStyles(swfFillStyles: SwfFillStyle[], swfLineStyles: SwfLineStyle[]): void {
     const layer: StyleLayer = createStyleLayer(swfFillStyles, swfLineStyles);
     this.layers.push(layer);
     this.leftFill = undefined;
@@ -365,25 +438,4 @@ class SwfShapeConverter {
       throw new Error("Invalid fill ID");
     }
   }
-}
-
-export function toSimpleShape(tag: tags.DefineShape): Shape {
-  // console.log(tag.shape.records);
-  const converter: SwfShapeConverter = new SwfShapeConverter(tag.shape.fillStyles, tag.shape.lineStyles);
-
-  for (const record of tag.shape.records) {
-    switch (record.type) {
-      case shapes.ShapeRecordType.CurvedEdge:
-        converter.applyCurvedEdge(record);
-        break;
-      case shapes.ShapeRecordType.StraightEdge:
-        converter.applyStraightEdge(record);
-        break;
-      case shapes.ShapeRecordType.StyleChange:
-        converter.applyStyleChange(record);
-        break;
-    }
-  }
-
-  return converter.getShape();
 }
