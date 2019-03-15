@@ -7,12 +7,12 @@ import { DisplayObjectType } from "../display/display-object-type";
 import { MorphShape } from "../display/morph-shape";
 import { Shape } from "../display/shape";
 import { Stage } from "../display/stage";
+import { Renderer } from "../renderer";
 import { decodeSwfShape } from "../shape/decode-swf-shape";
 import { FillStyleType } from "../shape/fill-style";
 import { LineStyleType } from "../shape/line-style";
 import { CommandType, Path } from "../shape/path";
 import { Shape as CompiledShape } from "../shape/shape";
-import { Renderer } from "../../renderer";
 
 function lerp(start: number, end: number, ratio: number): number {
   return end * ratio + start * (1 - ratio);

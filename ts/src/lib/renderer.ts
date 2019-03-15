@@ -1,7 +1,7 @@
 // import {MorphShape} from "../shape/morph-shape";
 // import {Shape} from "../shape/shape";
 // import {Matrix} from "swf-tree/matrix";
-import { Stage } from "./lib/display/stage";
+import { Stage } from "./display/stage";
 
 export interface Renderer {
   render(stage: Stage): void;

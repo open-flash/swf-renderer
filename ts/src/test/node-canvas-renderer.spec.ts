@@ -155,7 +155,7 @@ async function writeFile(filePath: fs.PathLike, data: Buffer): Promise<void> {
   });
 }
 
-export function loadImage(uri: url.URL): Promise<canvas.Image> {
+export async function loadImage(uri: url.URL): Promise<canvas.Image> {
   return new Promise<canvas.Image>((resolve, reject): void => {
     const img: canvas.Image = new canvas.Image();
 
