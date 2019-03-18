@@ -6,7 +6,7 @@ import { JsonReader } from "kryo/readers/json";
 import sysPath from "path";
 import pixelmatch from "pixelmatch";
 import { Sfixed16P16 } from "swf-tree/fixed-point/sfixed16p16";
-import { $DefineShape, DefineShape } from "swf-tree/tags";
+import { $DefineMorphShape, $DefineShape, DefineMorphShape, DefineShape } from "swf-tree/tags";
 import url from "url";
 import { DisplayObjectType } from "../lib/display/display-object-type";
 import { Stage } from "../lib/display/stage";
@@ -15,6 +15,7 @@ import meta from "./meta.js";
 
 const PROJECT_ROOT: string = sysPath.join(meta.dirname, "..", "..", "..");
 const TEST_SAMPLES_ROOT: string = sysPath.join(PROJECT_ROOT, "..", "tests", "decode-shape");
+const MORPH_SHAPE_SAMPLES_ROOT: string = sysPath.join(PROJECT_ROOT, "..", "tests", "morph-shape");
 
 const JSON_READER: JsonReader = new JsonReader();
 
@@ -62,6 +63,61 @@ describe("render", function () {
       if (comparison.sameSize) {
         const diffPngBuffer: Buffer = await toPngBuffer(comparison.diffImage);
         await writeFile(join(fromSysPath(TEST_SAMPLES_ROOT), [`${sample.name}.ts-diff.png`]), diffPngBuffer);
+      }
+      assertSimilarImages(comparison);
+    });
+  }
+
+  for (const sample of getMorphShapeSamples()) {
+    it(sample.name, async function () {
+      const inputJson: string = fs.readFileSync(
+        sysPath.join(MORPH_SHAPE_SAMPLES_ROOT, `${sample.name}.ast.json`),
+        {encoding: "UTF-8"},
+      );
+      const inputTag: DefineMorphShape = $DefineMorphShape.read(JSON_READER, inputJson);
+
+      const xMin: number = Math.min(inputTag.bounds.xMin, inputTag.morphBounds.xMin);
+      const xMax: number = Math.max(inputTag.bounds.xMax, inputTag.morphBounds.xMax);
+      const yMin: number = Math.min(inputTag.bounds.yMin, inputTag.morphBounds.yMin);
+      const yMax: number = Math.max(inputTag.bounds.yMax, inputTag.morphBounds.yMax);
+
+      const width: number = Math.ceil((xMax - xMin) / 20);
+      const height: number = Math.ceil((yMax - yMin) / 20);
+
+      const input: Stage = {
+        width,
+        height,
+        backgroundColor: {r: 0, g: 0, b: 0, a: 0},
+        children: [
+          {
+            type: DisplayObjectType.MorphShape,
+            definition: inputTag,
+            ratio: sample.ratio,
+            matrix: {
+              scaleX: Sfixed16P16.fromValue(1),
+              scaleY: Sfixed16P16.fromValue(1),
+              rotateSkew0: Sfixed16P16.fromValue(0),
+              rotateSkew1: Sfixed16P16.fromValue(0),
+              translateX: -xMin,
+              translateY: -yMin,
+            },
+          },
+        ],
+      };
+
+      const ncr: NodeCanvasRenderer = new NodeCanvasRenderer(width, height);
+      ncr.render(input);
+
+      const actualCanvas: canvas.Canvas = ncr.canvas;
+      const actualPngBuffer: Buffer = await toPngBuffer(actualCanvas);
+      const baseName: string = `${sample.name}.${sample.ratio * (1 << 16)}`;
+      await writeFile(join(fromSysPath(MORPH_SHAPE_SAMPLES_ROOT), [`${baseName}.ts-out.png`]), actualPngBuffer);
+      const expectedUri: url.URL = join(fromSysPath(MORPH_SHAPE_SAMPLES_ROOT), [`${baseName}.png`]);
+      const expectedCanvas: canvas.Image = await loadImage(expectedUri);
+      const comparison: ImageComparison = await compareImages(actualCanvas, expectedCanvas);
+      if (comparison.sameSize) {
+        const diffPngBuffer: Buffer = await toPngBuffer(comparison.diffImage);
+        await writeFile(join(fromSysPath(MORPH_SHAPE_SAMPLES_ROOT), [`${baseName}.ts-diff.png`]), diffPngBuffer);
       }
       assertSimilarImages(comparison);
     });
@@ -193,8 +249,19 @@ interface Sample {
   name: string;
 }
 
+interface MorphShapeSample {
+  name: string;
+  ratio: number;
+}
+
 function* getSamples(): IterableIterator<Sample> {
   yield {name: "homestuck-beta-1"};
   yield {name: "squares"};
   yield {name: "triangle"};
+}
+
+function* getMorphShapeSamples(): IterableIterator<MorphShapeSample> {
+  yield {name: "homestuck-beta-29", ratio: 0};
+  yield {name: "homestuck-beta-29", ratio: 0.5};
+  yield {name: "homestuck-beta-29", ratio: 1};
 }

@@ -216,7 +216,7 @@ export class CanvasRenderer implements Renderer {
       switch (command.type) {
         case MorphCommandType.CurveTo:
           this.context.quadraticCurveTo(
-            lerp(command.controlX[0], command.controlY[1], ratio),
+            lerp(command.controlX[0], command.controlX[1], ratio),
             lerp(command.controlY[0], command.controlY[1], ratio),
             lerp(command.endX[0], command.endX[1], ratio),
             lerp(command.endY[0], command.endY[1], ratio),

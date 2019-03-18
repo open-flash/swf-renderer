@@ -316,7 +316,7 @@ class SwfMorphShapeDecoder {
     if (record.moveTo !== undefined) {
       if (record.morphMoveTo === undefined) {
         // TODO: Use Incident
-        throw new Error("Expected endMoveTo to be defined");
+        throw new Error("Expected morphMoveTo to be defined");
       }
       this.x = [record.moveTo.x, record.morphMoveTo.x];
       this.y = [record.moveTo.y, record.morphMoveTo.y];
@@ -344,8 +344,8 @@ class SwfMorphShapeDecoder {
   applyCurvedEdge(record: MorphCurvedEdge): void {
     const controlX: [number, number] = [this.x[0] + record.controlDelta.x, this.x[1] + record.morphControlDelta.x];
     const controlY: [number, number] = [this.y[0] + record.controlDelta.y, this.y[1] + record.morphControlDelta.y];
-    const endX: [number, number] = [this.x[0] + record.anchorDelta.x, this.x[1] + record.morphAnchorDelta.x];
-    const endY: [number, number] = [this.y[0] + record.anchorDelta.y, this.y[1] + record.morphAnchorDelta.y];
+    const endX: [number, number] = [controlX[0] + record.anchorDelta.x, controlX[1] + record.morphAnchorDelta.x];
+    const endY: [number, number] = [controlY[0] + record.anchorDelta.y, controlY[1] + record.morphAnchorDelta.y];
 
     if (this.leftFill !== undefined) {
       this.leftFill.segments.push(createCurvedSegment(this.x, this.y, controlX, controlY, endX, endY));
