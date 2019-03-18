@@ -1,6 +1,6 @@
 {
   "name": "swf-renderer",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "homepage": "https://github.com/open-flash/swf-renderer",
   "description": "Level renderer",
   "main": "dist/lib/index",
