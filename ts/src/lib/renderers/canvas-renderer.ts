@@ -1,6 +1,8 @@
 import { Incident } from "incident";
+import { Uint16 } from "semantic-types";
 import { Matrix } from "swf-tree/matrix";
-import { DefineMorphShape, DefineShape } from "swf-tree/tags";
+import { DefineBitmap, DefineMorphShape, DefineShape } from "swf-tree/tags";
+import { Bitmap, BitmapConsumer, BitmapProvider } from "../bitmap-service";
 import { fromNormalizedColor } from "../css-color";
 import { DisplayObject } from "../display/display-object";
 import { DisplayObjectContainer } from "../display/display-object-container";
@@ -19,6 +21,7 @@ import { MorphCommandType, MorphPath } from "../shape/morph-path";
 import { MorphShape as CompiledMorphShape } from "../shape/morph-shape";
 import { CommandType, Path } from "../shape/path";
 import { Shape as CompiledShape } from "../shape/shape";
+import { NodeCanvasBitmapService } from "./node-canvas-bitmap-service";
 
 function lerp(start: number, end: number, ratio: number): number {
   return end * ratio + start * (1 - ratio);
@@ -45,27 +48,24 @@ function lerpRgba(start: Rgba, end: Rgba, ratio: number): Rgba {
 // }
 
 export class CanvasRenderer implements Renderer {
+  private readonly bitmapService: BitmapConsumer & BitmapProvider<CanvasImageSource>;
   private readonly context: CanvasRenderingContext2D;
   private readonly morphShapeCache: WeakMap<DefineMorphShape, CompiledMorphShape>;
   private readonly shapeCache: WeakMap<DefineShape, CompiledShape>;
-  // private width: number;
-  // private height: number;
 
-  constructor(context: CanvasRenderingContext2D /*, width: number, height: number */) {
+  constructor(context: CanvasRenderingContext2D) {
+    this.bitmapService = new NodeCanvasBitmapService() as any;
     this.context = context;
     this.morphShapeCache = new WeakMap();
     this.shapeCache = new WeakMap();
-    // this.width = width;
-    // this.height = height;
   }
-
-  // updateSize(width: number, height: number): void {
-  //   this.width = width;
-  //   this.height = height;
-  // }
 
   render(stage: Stage): void {
     this.renderStage(stage);
+  }
+
+  async addBitmap(tag: DefineBitmap): Promise<void> {
+    this.bitmapService.addBitmap(tag);
   }
 
   private renderStage(stage: Stage): void {
@@ -145,6 +145,7 @@ export class CanvasRenderer implements Renderer {
       this.context.restore();
     }
   }
+
   //
   // private renderSimpleButton(simpleButton: SimpleButton): void {
   //   switch (simpleButton.state) {
@@ -174,7 +175,7 @@ export class CanvasRenderer implements Renderer {
   // }
 
   // private renderLoader(loader: SwfLoader): void {
-    // console.log("Rendering loader");
+  // console.log("Rendering loader");
   // }
 
   private applyMatrix(matrix: Matrix): void {
@@ -292,12 +293,26 @@ export class CanvasRenderer implements Renderer {
       this.context.save();
       switch (path.fill.type) {
         case FillStyleType.Bitmap:
-          this.context.fillStyle = fromNormalizedColor({
-            r: 0.2,
-            g: 0.6,
-            b: 0.8,
-            a: 0.9,
-          });
+          const bitmapId: Uint16 = path.fill.bitmapId;
+          const bitmap: Bitmap<CanvasImageSource> = this.bitmapService.getById(bitmapId);
+          if (bitmap.bitmap === undefined) {
+            this.context.fillStyle = fromNormalizedColor({
+              r: 0.2,
+              g: 0.6,
+              b: 0.8,
+              a: 0.9,
+            });
+          } else {
+            const pattern: CanvasPattern | null = this.context.createPattern(
+              bitmap.bitmap,
+              path.fill.repeating ? "repeat" : "no-repeat",
+            );
+            if (pattern === null) {
+              throw new Error("CannotCreatePattern");
+            }
+            this.applyMatrix(path.fill.matrix);
+            this.context.fillStyle = pattern;
+          }
           break;
         case FillStyleType.Solid:
           this.context.fillStyle = fromNormalizedColor(path.fill.color);

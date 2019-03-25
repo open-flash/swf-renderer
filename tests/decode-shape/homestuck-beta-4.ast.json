@@ -1,0 +1,86 @@
+{
+  "type": "define-shape",
+  "id": 4,
+  "bounds": {
+    "x_min": 3869,
+    "x_max": 4947,
+    "y_min": 3667,
+    "y_max": 5279
+  },
+  "has_fill_winding": false,
+  "has_non_scaling_strokes": false,
+  "has_scaling_strokes": false,
+  "shape": {
+    "initial_styles": {
+      "fill": [
+        {
+          "type": "bitmap",
+          "bitmap_id": 65535,
+          "matrix": {
+            "scale_x": 1310720,
+            "scale_y": 1310720,
+            "rotate_skew0": 0,
+            "rotate_skew1": 0,
+            "translate_x": 0,
+            "translate_y": 0
+          },
+          "repeating": false,
+          "smoothed": true
+        },
+        {
+          "type": "bitmap",
+          "bitmap_id": 3,
+          "matrix": {
+            "scale_x": 508060,
+            "scale_y": 508060,
+            "rotate_skew0": 0,
+            "rotate_skew1": 0,
+            "translate_x": 3869,
+            "translate_y": 3667
+          },
+          "repeating": false,
+          "smoothed": true
+        }
+      ],
+      "line": []
+    },
+    "records": [
+      {
+        "type": "style-change",
+        "move_to": {
+          "x": 4947,
+          "y": 3667
+        },
+        "right_fill": 2
+      },
+      {
+        "type": "straight-edge",
+        "delta": {
+          "x": 0,
+          "y": 1612
+        }
+      },
+      {
+        "type": "straight-edge",
+        "delta": {
+          "x": -1078,
+          "y": 0
+        }
+      },
+      {
+        "type": "straight-edge",
+        "delta": {
+          "x": 0,
+          "y": -1612
+        }
+      },
+      {
+        "type": "straight-edge",
+        "delta": {
+          "x": 1078,
+          "y": 0
+        }
+      }
+    ]
+  }
+}

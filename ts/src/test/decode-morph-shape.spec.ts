@@ -14,7 +14,7 @@ const TEST_SAMPLES_ROOT: string = sysPath.join(PROJECT_ROOT, "..", "tests", "mor
 const JSON_READER: JsonReader = new JsonReader();
 // const JSON_VALUE_WRITER: JsonValueWriter = new JsonValueWriter();
 
-describe("decodeShape", function () {
+describe("decodeMorphShape", function () {
   for (const sample of getSamples()) {
     it(sample.name, async function () {
       const expectedJson: string = fs.readFileSync(

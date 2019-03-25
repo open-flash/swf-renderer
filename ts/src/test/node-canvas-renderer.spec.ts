@@ -6,7 +6,14 @@ import { JsonReader } from "kryo/readers/json";
 import sysPath from "path";
 import pixelmatch from "pixelmatch";
 import { Sfixed16P16 } from "swf-tree/fixed-point/sfixed16p16";
-import { $DefineMorphShape, $DefineShape, DefineMorphShape, DefineShape } from "swf-tree/tags";
+import {
+  $DefineBitmap,
+  $DefineMorphShape,
+  $DefineShape,
+  DefineBitmap,
+  DefineMorphShape,
+  DefineShape,
+} from "swf-tree/tags";
 import url from "url";
 import { DisplayObjectType } from "../lib/display/display-object-type";
 import { Stage } from "../lib/display/stage";
@@ -22,6 +29,7 @@ const JSON_READER: JsonReader = new JsonReader();
 describe("render", function () {
   for (const sample of getSamples()) {
     it(sample.name, async function () {
+
       const inputJson: string = fs.readFileSync(
         sysPath.join(TEST_SAMPLES_ROOT, `${sample.name}.ast.json`),
         {encoding: "UTF-8"},
@@ -52,6 +60,16 @@ describe("render", function () {
       };
 
       const ncr: NodeCanvasRenderer = new NodeCanvasRenderer(width, height);
+      if (sample.bitmaps !== undefined) {
+        for (const bmpRelPath of sample.bitmaps) {
+          const bmpJson: string = fs.readFileSync(
+            sysPath.join(TEST_SAMPLES_ROOT, `${bmpRelPath}.ast.json`),
+            {encoding: "UTF-8"},
+          );
+          const bmpTag: DefineBitmap = $DefineBitmap.read(JSON_READER, bmpJson);
+          await ncr.addBitmap(bmpTag);
+        }
+      }
       ncr.render(input);
 
       const actualCanvas: canvas.Canvas = ncr.canvas;
@@ -247,6 +265,7 @@ export async function loadImage(uri: url.URL): Promise<canvas.Image> {
 
 interface Sample {
   name: string;
+  bitmaps?: ReadonlyArray<string>;
 }
 
 interface MorphShapeSample {
@@ -256,6 +275,7 @@ interface MorphShapeSample {
 
 function* getSamples(): IterableIterator<Sample> {
   yield {name: "homestuck-beta-1"};
+  yield {name: "homestuck-beta-4", bitmaps: ["../bitmap/homestuck-beta-3"]};
   yield {name: "squares"};
   yield {name: "triangle"};
 }
