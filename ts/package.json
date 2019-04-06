@@ -25,7 +25,12 @@
     ]
   },
   "keywords": [],
-  "license": "MIT",
+  "licenses": [
+    {
+      "type": "AGPL-3.0-or-later",
+      "url": "https://spdx.org/licenses/AGPL-3.0-or-later.html"
+    }
+  ],
   "dependencies": {
     "@open-flash/stream": "^0.1.0",
     "canvas": "^2.4.0",

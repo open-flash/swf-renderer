@@ -1,22 +1,44 @@
+<a href="https://github.com/open-flash/open-flash">
+    <img src="https://raw.githubusercontent.com/open-flash/open-flash/master/logo.png"
+    alt="Open Flash logo" title="Open Flash" align="right" width="64" height="64" />
+</a>
+
 # SWF Renderer
 
-This project provides rendering backends for an eventual Flash Player (it should be split)
-in smaller parts.
+[![npm](https://img.shields.io/npm/v/swf-renderer.svg?maxAge=86400)](https://www.npmjs.com/package/swf-renderer)
+[![crates.io](https://img.shields.io/crates/v/swf-renderer.svg?maxAge=86400)](https://crates.io/crates/swf-renderer)
+[![GitHub repository](https://img.shields.io/badge/Github-open--flash%2Fswf--renderer-blue.svg?maxAge=86400)](https://github.com/open-flash/swf-renderer)
+[![Build status](https://img.shields.io/travis/open-flash/swf-renderer/master.svg?maxAge=86400)](https://travis-ci.org/open-flash/swf-renderer)
 
-The priority is to provide a renderer using the Canvas API compatible with both the browser
-and Node, eventually working in a worker. (Shumway uses Buffers to send draw commands.) In
-the mean time it could be interesting to investigate a standalone Rust renderer.
-[OpenGL support is not a priority](https://softwareengineering.stackexchange.com/a/252600/275891),
-but we definitely want to support SVG and DOM layers (text, video, ...).
+SWF renderer implemented in Rust and Typescript (Node and browser).
+Converts shapes to pixels.
 
-For the moment it's in a **very** early stage, it can render shapes using solid fills with
-the canvas API. It rendered [squares.swf](https://github.com/open-flash/swf-parser/blob/master/test/end-to-end/squares/squares.swf)
-correctly in `swf-renderer.ts/out.png`.
+- [Rust implementation](./rs/README.md)
+- [Typescript implementation](./ts/README.md)
 
-![Squares.png](./swf-renderer.ts/out.png)
+This library is part of the [Open Flash][ofl] project.
 
-The most interesting part so far is the shape conversion algorithm in
-`swf-renderer.ts/src/lib/simple-shape/shape.ts`. It converts the space-optimized
-shape representation used in SWF files to a representation more suitable for rendering.
-I believe it's one of the easiest implementation to understand by reading the code (but I
-may be partial since I wrote it :P). The exact algorithm should be documented...
+## Usage
+
+- [Rust](./rs/README.md#usage)
+- [Typescript](./ts/README.md#usage)
+
+## Status
+
+The Typescript implementation has Node and browser based on the
+`CanvasRendering2D` backend. It can decode shapes and morph and render
+gradients and solid fill styles. It has basic support for textures.
+
+The Rust implementation is merely experimental. It uses `gfx-rs` to renderer
+the shapes using the GPU.
+
+## Contributing
+
+- [Rust](./rs/README.md#contributing)
+- [Typescript](./ts/README.md#contributing)
+
+You can also use the library and report any issues you encounter on the Github
+issues page.
+
+[ofl]: https://github.com/open-flash/open-flash
+[swf-tree]: https://github.com/open-flash/swf-tree
