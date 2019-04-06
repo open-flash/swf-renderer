@@ -2,6 +2,7 @@
 name = "swf-renderer"
 version = "0.1.0"
 authors = ["Charles Samborski <demurgos@demurgos.net>"]
+edition = "2018"
 
 [lib]
 name = "swf_renderer"
@@ -12,8 +13,70 @@ name = "swf-renderer"
 path = "src/main.rs"
 
 [dependencies]
-gfx = "^0.16.1"
-piston = "0.32.0"
-piston2d-graphics = "0.21.1"
-pistoncore-glutin_window = "0.37.0"
-piston2d-opengl_graphics = "0.44.0"
+lyon = "^0.13.1"
+shaderc = "^0.3.16"
+swf-tree = "^0.4.1"
+
+#rendy-command = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+#rendy-descriptor = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+#rendy-factory = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+#rendy-frame = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+#rendy-graph = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+#rendy-memory = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+#rendy-mesh = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+#rendy-shader = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+#rendy-resource = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+#rendy-texture = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+#rendy-util = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+#rendy-wsi = { version = "0.1.0", git = "https://github.com/omni-viral/rendy", branch = "master", optional = true }
+
+gfx-hal = "^0.1.0"
+gfx-backend-empty = { version = "^0.1.0", optional = true }
+gfx-backend-dx12 = { version = "^0.1.0", optional = true }
+gfx-backend-gl = { version = "^0.1.0", optional = false }
+gfx-backend-metal = { version = "^0.1.0", optional = true }
+gfx-backend-vulkan = { version = "^0.1.0", optional = false }
+env_logger = "^0.6.1"
+nalgebra-glm = "^0.4.0"
+
+#[features]
+#empty = ["rendy-factory/empty", "rendy-graph/empty", "rendy-wsi/empty", "gfx-backend-empty"]
+#dx12 = ["rendy-factory/dx12", "rendy-graph/dx12", "rendy-wsi/dx12", "gfx-backend-dx12"]
+#metal = ["rendy-factory/metal", "rendy-graph/metal", "rendy-wsi/metal", "gfx-backend-metal"]
+#vulkan = ["rendy-factory/vulkan", "rendy-graph/vulkan", "rendy-wsi/vulkan", "gfx-backend-vulkan"]
+#serde-1 = ["gfx-hal/serde", "rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1"]
+#no-slow-safety-checks = ["rendy-factory/no-slow-safety-checks", "rendy-wsi/no-slow-safety-checks", "rendy-util/no-slow-safety-checks"]
+#shader-compiler = ["rendy-shader/shader-compiler"]
+#
+#command = ["rendy-command"]
+#descriptor = ["rendy-descriptor"]
+#factory = ["rendy-factory", "command", "descriptor", "resource", "wsi"]
+#frame = ["rendy-frame", "factory"]
+#graph = ["rendy-graph", "frame"]
+#memory = ["rendy-memory"]
+#mesh = ["rendy-mesh", "factory", "util"]
+#shader = ["rendy-shader", "factory"]
+#resource = ["rendy-resource", "memory"]
+#texture = ["rendy-texture", "factory", "util"]
+#util = ["rendy-util"]
+#wsi = ["rendy-wsi"]
+#
+#base = ["shader-compiler", "command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
+#default = ["base"]
+#
+#mesh-obj = ["mesh", "rendy-mesh/obj"]
+#texture-image = ["texture", "rendy-texture/image"]
+#texture-palette = ["texture", "rendy-texture/palette"]
+#
+#full = ["base", "mesh-obj", "texture-image", "texture-palette"]
+
+[dev-dependencies]
+genmesh = "0.6"
+nalgebra = "0.16"
+env_logger = "0.5"
+failure = "0.1"
+lazy_static = "1.0"
+log = "0.4"
+winit = "0.18"
+palette = "0.4"
+rand = "0.6"
