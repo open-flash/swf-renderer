@@ -35,7 +35,6 @@
     "@open-flash/stream": "^0.1.0",
     "canvas": "^2.4.0",
     "furi": "^1.3.0",
-    "gl": "^4.2.2",
     "incident": "^3.2.0",
     "object-inspect": "^1.6.0",
     "rxjs": "^6.4.0",
