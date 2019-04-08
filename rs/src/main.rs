@@ -62,7 +62,7 @@ fn main() {
 
   // Create attachments
   let ((color_image, color_image_view), (depth_image, depth_image_view)) = unsafe {
-    gfx::create_images::<gfx_backend::Backend>(&device, &mut command_pool, cmd_queue, color_format, depth_format, &memory_types)
+    gfx::create_images::<gfx_backend::Backend>(&device, color_format, depth_format, &memory_types)
   };
 
   //  Create renderpass

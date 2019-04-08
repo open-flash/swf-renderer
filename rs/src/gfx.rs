@@ -182,8 +182,6 @@ pub fn get_memory_type_id(
 
 pub unsafe fn create_images<B: gfx_hal::Backend>(
   device: &B::Device,
-  command_pool: &mut gfx_hal::pool::CommandPool<B, gfx_hal::queue::Graphics>,
-  cmd_queue: &mut gfx_hal::queue::CommandQueue<B, gfx_hal::queue::Graphics>,
   color_format: gfx_hal::format::Format,
   depth_format: gfx_hal::format::Format,
   memory_types: &[gfx_hal::MemoryType],
@@ -280,7 +278,7 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
       ).unwrap()
     };
 
-    unsafe {
+    {
       let mut staging_mapping: gfx_hal::mapping::Writer<B, Vertex> = device
         .acquire_mapping_writer(&staging_buffer.memory, 0..staging_buffer.capacity)
         .expect("Failed to acquire mapping writer");
@@ -315,11 +313,11 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
       device.destroy_fence(copy_fence);
     }
 
-    unsafe {
+    {
       destroy_buffer(device, staging_buffer);
     }
 
-    let staging_buffer = unsafe {
+    let staging_buffer = {
       create_buffer::<B>(
         &device,
         gfx_hal::buffer::Usage::TRANSFER_SRC,
@@ -349,7 +347,7 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
       ).unwrap()
     };
 
-    unsafe {
+    {
       let mut copy_cmd = command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
       copy_cmd.begin();
       copy_cmd.copy_buffer(
@@ -364,14 +362,14 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
       device.destroy_fence(copy_fence);
     }
 
-    unsafe {
+    {
       destroy_buffer(device, staging_buffer);
     }
 
     (vertex_buffer, index_buffer)
   };
 
-  let (vertex_shader_module, fragment_shader_module, descriptor_set_layout, pipeline_layout, pipeline_cache, pipeline) = unsafe {
+  let (vertex_shader_module, fragment_shader_module, descriptor_set_layout, pipeline_layout, pipeline_cache, pipeline) = {
     let descriptor_set_layout = device
       .create_descriptor_set_layout(&[], &[])
       .expect("Failed to create descriptor set layout");
@@ -458,13 +456,13 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
       gfx_hal::pso::AttributeDesc {
         binding: 0,
         location: 0,
-        element: gfx_hal::pso::Element { format: gfx_hal::format::Format::Rgb32Float, offset: 0 },
+        element: gfx_hal::pso::Element { format: gfx_hal::format::Format::Rgb32Float, offset: offset_of!(Vertex, position) as u32 },
       },
       // color
       gfx_hal::pso::AttributeDesc {
         binding: 0,
         location: 1,
-        element: gfx_hal::pso::Element { format: gfx_hal::format::Format::Rgb32Float, offset: 4 * 3 },
+        element: gfx_hal::pso::Element { format: gfx_hal::format::Format::Rgb32Float, offset: offset_of!(Vertex, color) as u32 },
       },
     ];
 
@@ -533,7 +531,7 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
     (vertex_shader_module, fragment_shader_module, descriptor_set_layout, pipeline_layout, pipeline_cache, pipeline)
   };
 
-  unsafe {
+  {
     let mut command_buffer = command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
 
     command_buffer.begin();

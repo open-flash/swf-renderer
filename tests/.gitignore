@@ -1,3 +1,4 @@
+!*.log
 ts-diff.png
 ts-out.png
 *.ts-out.pam

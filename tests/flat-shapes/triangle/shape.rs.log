@@ -1,0 +1,138 @@
+Shape {
+    paths: [
+        StyledPath {
+            path: Path {
+                points: [],
+                verbs: []
+            },
+            fill: Some(
+                Solid(
+                    Solid {
+                        color: StraightSRgba8 {
+                            r: 255,
+                            g: 0,
+                            b: 0,
+                            a: 255
+                        }
+                    }
+                )
+            ),
+            line: None
+        },
+        StyledPath {
+            path: Path {
+                points: [],
+                verbs: []
+            },
+            fill: Some(
+                Solid(
+                    Solid {
+                        color: StraightSRgba8 {
+                            r: 0,
+                            g: 0,
+                            b: 255,
+                            a: 255
+                        }
+                    }
+                )
+            ),
+            line: None
+        },
+        StyledPath {
+            path: Path {
+                points: [],
+                verbs: []
+            },
+            fill: Some(
+                Solid(
+                    Solid {
+                        color: StraightSRgba8 {
+                            r: 0,
+                            g: 255,
+                            b: 0,
+                            a: 255
+                        }
+                    }
+                )
+            ),
+            line: None
+        },
+        StyledPath {
+            path: Path {
+                points: [],
+                verbs: []
+            },
+            fill: Some(
+                Solid(
+                    Solid {
+                        color: StraightSRgba8 {
+                            r: 255,
+                            g: 255,
+                            b: 0,
+                            a: 255
+                        }
+                    }
+                )
+            ),
+            line: None
+        },
+        StyledPath {
+            path: Path {
+                points: [
+                    (380.0,6839.0),
+                    (10420.0,7159.0),
+                    (3880.0,820.0),
+                    (380.0,6839.0)
+                ],
+                verbs: [
+                    MoveTo,
+                    LineTo,
+                    LineTo,
+                    LineTo
+                ]
+            },
+            fill: Some(
+                Solid(
+                    Solid {
+                        color: StraightSRgba8 {
+                            r: 51,
+                            g: 102,
+                            b: 153,
+                            a: 255
+                        }
+                    }
+                )
+            ),
+            line: None
+        },
+        StyledPath {
+            path: Path {
+                points: [],
+                verbs: []
+            },
+            fill: None,
+            line: Some(
+                LineStyle {
+                    width: 20,
+                    start_cap: Round,
+                    end_cap: Round,
+                    join: Round,
+                    no_h_scale: false,
+                    no_v_scale: false,
+                    no_close: false,
+                    pixel_hinting: false,
+                    fill: Solid(
+                        Solid {
+                            color: StraightSRgba8 {
+                                r: 0,
+                                g: 0,
+                                b: 0,
+                                a: 255
+                            }
+                        }
+                    )
+                }
+            )
+        }
+    ]
+}

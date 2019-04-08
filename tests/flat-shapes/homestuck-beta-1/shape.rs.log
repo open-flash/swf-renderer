@@ -1,0 +1,201 @@
+Shape {
+    paths: [
+        StyledPath {
+            path: Path {
+                points: [
+                    (14126.0,9490.0),
+                    (14126.0,4169.0),
+                    (13826.0,4296.0),
+                    (14126.0,4169.0),
+                    (7957.0,0.0),
+                    (9.0,3364.0),
+                    (247.0,3536.0),
+                    (9.0,3364.0),
+                    (0.0,4684.0),
+                    (9.0,8695.0),
+                    (6166.0,12855.0),
+                    (7907.0,5117.0),
+                    (7907.0,297.0),
+                    (13826.0,4296.0),
+                    (13826.0,9116.0),
+                    (13826.0,4296.0),
+                    (7907.0,297.0),
+                    (7907.0,5117.0),
+                    (13826.0,9116.0),
+                    (6166.0,12355.0),
+                    (13826.0,9116.0),
+                    (6166.0,12355.0),
+                    (6166.0,12855.0),
+                    (6166.0,12355.0),
+                    (247.0,8356.0),
+                    (6166.0,12355.0),
+                    (6166.0,12855.0),
+                    (14126.0,9490.0),
+                    (247.0,8356.0),
+                    (247.0,3536.0),
+                    (7907.0,297.0),
+                    (247.0,3536.0),
+                    (247.0,8356.0)
+                ],
+                verbs: [
+                    MoveTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    MoveTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    MoveTo,
+                    LineTo,
+                    LineTo,
+                    MoveTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    MoveTo,
+                    LineTo,
+                    MoveTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo
+                ]
+            },
+            fill: Some(
+                Solid(
+                    Solid {
+                        color: StraightSRgba8 {
+                            r: 255,
+                            g: 255,
+                            b: 255,
+                            a: 255
+                        }
+                    }
+                )
+            ),
+            line: None
+        },
+        StyledPath {
+            path: Path {
+                points: [
+                    (14126.0,4169.0),
+                    (13826.0,4296.0),
+                    (13826.0,9116.0),
+                    (6166.0,12355.0),
+                    (6166.0,12855.0),
+                    (14126.0,9490.0),
+                    (14126.0,4169.0),
+                    (7957.0,0.0),
+                    (9.0,3364.0),
+                    (247.0,3536.0),
+                    (7907.0,297.0),
+                    (13826.0,4296.0),
+                    (7907.0,5117.0),
+                    (7907.0,297.0),
+                    (9.0,3364.0),
+                    (0.0,4684.0),
+                    (9.0,8695.0),
+                    (6166.0,12855.0),
+                    (6166.0,12355.0),
+                    (247.0,8356.0),
+                    (247.0,3536.0)
+                ],
+                verbs: [
+                    MoveTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    MoveTo,
+                    LineTo,
+                    MoveTo,
+                    LineTo,
+                    LineTo,
+                    LineTo,
+                    MoveTo,
+                    LineTo,
+                    LineTo
+                ]
+            },
+            fill: None,
+            line: Some(
+                LineStyle {
+                    width: 60,
+                    start_cap: Round,
+                    end_cap: Round,
+                    join: Round,
+                    no_h_scale: false,
+                    no_v_scale: false,
+                    no_close: false,
+                    pixel_hinting: false,
+                    fill: Solid(
+                        Solid {
+                            color: StraightSRgba8 {
+                                r: 0,
+                                g: 0,
+                                b: 0,
+                                a: 255
+                            }
+                        }
+                    )
+                }
+            )
+        },
+        StyledPath {
+            path: Path {
+                points: [
+                    (247.0,8356.0),
+                    (7907.0,5117.0),
+                    (13826.0,9116.0)
+                ],
+                verbs: [
+                    MoveTo,
+                    LineTo,
+                    LineTo
+                ]
+            },
+            fill: None,
+            line: Some(
+                LineStyle {
+                    width: 60,
+                    start_cap: Round,
+                    end_cap: Round,
+                    join: Round,
+                    no_h_scale: false,
+                    no_v_scale: false,
+                    no_close: false,
+                    pixel_hinting: false,
+                    fill: Solid(
+                        Solid {
+                            color: StraightSRgba8 {
+                                r: 0,
+                                g: 0,
+                                b: 0,
+                                a: 255
+                            }
+                        }
+                    )
+                }
+            )
+        }
+    ]
+}
