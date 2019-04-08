@@ -18,8 +18,8 @@ export function decodeXSwfBmpSync(bytes: Uint8Array): canvas.ImageData {
   const colorCount: UintSize = stream.readUint8() + 1;
   const colors: Uint32[] = [];
   const compressedData: Uint8Array = stream.tailBytes();
-  // `new Buffer` is a workaround to get zlib to work in the browser: TODO, make `zlib` accept Uint8Array
-  const srcData: Buffer = zlib.inflateSync(new Buffer(compressedData));
+  // `Buffer.from` is a workaround to get zlib to work in the browser: TODO, make `zlib` accept Uint8Array
+  const srcData: Buffer = zlib.inflateSync(Buffer.from(compressedData));
   const data: Uint8ClampedArray = new Uint8ClampedArray(width * height * RGBA_SIZE);
   const dataView: DataView = new DataView(data.buffer, data.byteOffset, data.byteLength);
   const colorTableSize: UintSize = RGB_SIZE * colorCount;

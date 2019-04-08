@@ -1,3 +1,6 @@
-*.ts-diff.png
+ts-diff.png
+ts-out.png
 *.ts-out.pam
 *.ts-out.png
+*.ts-diff.png
+tmp-*

@@ -18,7 +18,7 @@ export class NodeCanvasRenderer implements Renderer {
     this.renderer.render(stage);
   }
 
-  addBitmap(tag: DefineBitmap): Promise<void> {
+  async addBitmap(tag: DefineBitmap): Promise<void> {
     return this.renderer.addBitmap(tag);
   }
 }

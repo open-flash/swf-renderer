@@ -1,7 +1,7 @@
 import canvas from "canvas";
 import chai from "chai";
 import fs from "fs";
-import { fromSysPath, join, toSysPath } from "furi";
+import { fromSysPath, toSysPath } from "furi";
 import { JsonReader } from "kryo/readers/json";
 import sysPath from "path";
 import pixelmatch from "pixelmatch";
@@ -18,22 +18,14 @@ import url from "url";
 import { DisplayObjectType } from "../lib/display/display-object-type";
 import { Stage } from "../lib/display/stage";
 import { NodeCanvasRenderer } from "../lib/renderers/node-canvas-renderer";
-import meta from "./meta.js";
-
-const PROJECT_ROOT: string = sysPath.join(meta.dirname, "..", "..", "..");
-const TEST_SAMPLES_ROOT: string = sysPath.join(PROJECT_ROOT, "..", "tests", "decode-shape");
-const MORPH_SHAPE_SAMPLES_ROOT: string = sysPath.join(PROJECT_ROOT, "..", "tests", "morph-shape");
+import { readTextFile, TEST_SAMPLES_ROOT } from "./utils";
 
 const JSON_READER: JsonReader = new JsonReader();
 
 describe("render", function () {
   for (const sample of getSamples()) {
     it(sample.name, async function () {
-
-      const inputJson: string = fs.readFileSync(
-        sysPath.join(TEST_SAMPLES_ROOT, `${sample.name}.ast.json`),
-        {encoding: "UTF-8"},
-      );
+      const inputJson: string = await readTextFile(sysPath.join(TEST_SAMPLES_ROOT, sample.name, "ast.json"));
       const inputTag: DefineShape = $DefineShape.read(JSON_READER, inputJson);
 
       const width: number = Math.ceil((inputTag.bounds.xMax - inputTag.bounds.xMin) / 20);
@@ -74,13 +66,13 @@ describe("render", function () {
 
       const actualCanvas: canvas.Canvas = ncr.canvas;
       const actualPngBuffer: Buffer = await toPngBuffer(actualCanvas);
-      await writeFile(join(fromSysPath(TEST_SAMPLES_ROOT), [`${sample.name}.ts-out.png`]), actualPngBuffer);
-      const expectedUri: url.URL = join(fromSysPath(TEST_SAMPLES_ROOT), [`${sample.name}.png`]);
+      await writeFile(sysPath.join(TEST_SAMPLES_ROOT, sample.name, "ts-out.png"), actualPngBuffer);
+      const expectedUri: url.URL = fromSysPath(sysPath.join(TEST_SAMPLES_ROOT, sample.name, "shape.png"));
       const expectedCanvas: canvas.Image = await loadImage(expectedUri);
       const comparison: ImageComparison = await compareImages(actualCanvas, expectedCanvas);
       if (comparison.sameSize) {
         const diffPngBuffer: Buffer = await toPngBuffer(comparison.diffImage);
-        await writeFile(join(fromSysPath(TEST_SAMPLES_ROOT), [`${sample.name}.ts-diff.png`]), diffPngBuffer);
+        await writeFile(sysPath.join(TEST_SAMPLES_ROOT, sample.name, "ts-diff.png"), diffPngBuffer);
       }
       assertSimilarImages(comparison);
     });
@@ -88,10 +80,7 @@ describe("render", function () {
 
   for (const sample of getMorphShapeSamples()) {
     it(sample.name, async function () {
-      const inputJson: string = fs.readFileSync(
-        sysPath.join(MORPH_SHAPE_SAMPLES_ROOT, `${sample.name}.ast.json`),
-        {encoding: "UTF-8"},
-      );
+      const inputJson: string = await readTextFile(sysPath.join(TEST_SAMPLES_ROOT, sample.name, "ast.json"));
       const inputTag: DefineMorphShape = $DefineMorphShape.read(JSON_READER, inputJson);
 
       const xMin: number = Math.min(inputTag.bounds.xMin, inputTag.morphBounds.xMin);
@@ -128,14 +117,14 @@ describe("render", function () {
 
       const actualCanvas: canvas.Canvas = ncr.canvas;
       const actualPngBuffer: Buffer = await toPngBuffer(actualCanvas);
-      const baseName: string = `${sample.name}.${sample.ratio * (1 << 16)}`;
-      await writeFile(join(fromSysPath(MORPH_SHAPE_SAMPLES_ROOT), [`${baseName}.ts-out.png`]), actualPngBuffer);
-      const expectedUri: url.URL = join(fromSysPath(MORPH_SHAPE_SAMPLES_ROOT), [`${baseName}.png`]);
+      const baseName: string = (sample.ratio * (1 << 16)).toString(10);
+      await writeFile(sysPath.join(TEST_SAMPLES_ROOT, sample.name, `${baseName}.ts-out.png`), actualPngBuffer);
+      const expectedUri: url.URL = fromSysPath(sysPath.join(TEST_SAMPLES_ROOT, sample.name, `${baseName}.png`));
       const expectedCanvas: canvas.Image = await loadImage(expectedUri);
       const comparison: ImageComparison = await compareImages(actualCanvas, expectedCanvas);
       if (comparison.sameSize) {
         const diffPngBuffer: Buffer = await toPngBuffer(comparison.diffImage);
-        await writeFile(join(fromSysPath(MORPH_SHAPE_SAMPLES_ROOT), [`${baseName}.ts-diff.png`]), diffPngBuffer);
+        await writeFile(sysPath.join(TEST_SAMPLES_ROOT, sample.name, `${baseName}.ts-diff.png`), diffPngBuffer);
       }
       assertSimilarImages(comparison);
     });
@@ -274,14 +263,14 @@ interface MorphShapeSample {
 }
 
 function* getSamples(): IterableIterator<Sample> {
-  yield {name: "homestuck-beta-1"};
-  yield {name: "homestuck-beta-4", bitmaps: ["../bitmap/homestuck-beta-3"]};
-  yield {name: "squares"};
-  yield {name: "triangle"};
+  yield {name: "flat-shapes/homestuck-beta-1"};
+  yield {name: "textured-shapes/homestuck-beta-4", bitmaps: ["bitmap/homestuck-beta-3"]};
+  yield {name: "flat-shapes/squares"};
+  yield {name: "flat-shapes/triangle"};
 }
 
 function* getMorphShapeSamples(): IterableIterator<MorphShapeSample> {
-  yield {name: "homestuck-beta-29", ratio: 0};
-  yield {name: "homestuck-beta-29", ratio: 0.5};
-  yield {name: "homestuck-beta-29", ratio: 1};
+  yield {name: "flat-morph-shapes/homestuck-beta-29", ratio: 0};
+  yield {name: "flat-morph-shapes/homestuck-beta-29", ratio: 0.5};
+  yield {name: "flat-morph-shapes/homestuck-beta-29", ratio: 1};
 }

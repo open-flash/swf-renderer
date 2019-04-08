@@ -1,0 +1,55 @@
+{
+  "paths": [
+    {
+      "commands": [
+        {
+          "type": 2,
+          "x": 3869,
+          "y": 3667
+        },
+        {
+          "type": 0,
+          "endX": 3869,
+          "endY": 5279
+        },
+        {
+          "type": 0,
+          "endX": 4947,
+          "endY": 5279
+        },
+        {
+          "type": 0,
+          "endX": 4947,
+          "endY": 3667
+        },
+        {
+          "type": 0,
+          "endX": 3869,
+          "endY": 3667
+        }
+      ],
+      "fill": {
+        "type": 0,
+        "bitmapId": 3,
+        "matrix": {
+          "scaleX": {
+            "epsilons": 508060
+          },
+          "scaleY": {
+            "epsilons": 508060
+          },
+          "rotateSkew0": {
+            "epsilons": 0
+          },
+          "rotateSkew1": {
+            "epsilons": 0
+          },
+          "translateX": 3869,
+          "translateY": 3667
+        },
+        "repeating": false,
+        "smoothed": true
+      }
+    }
+  ]
+}
