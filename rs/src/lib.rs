@@ -1,3 +1,5 @@
+pub use decoder::shape_decoder::{decode_shape, Shape, StyledPath};
+
 pub mod gfx;
 pub mod pam;
 pub mod headless_renderer;
@@ -7,19 +9,17 @@ pub(crate) mod decoder {
   pub(crate) mod shape_decoder;
 }
 
-pub use decoder::shape_decoder::{decode_shape, Shape, StyledPath};
-
-
 #[cfg(test)]
 mod renderer_tests {
+  use std::io::Write;
   use std::path::Path;
 
   use ::swf_tree::tags::DefineShape;
-
   use ::test_generator::test_expand_paths;
 
   use crate::decode_shape;
-  use std::io::Write;
+  use crate::headless_renderer::HeadlessGfxRenderer;
+  use crate::pam::write_pam;
 
   test_expand_paths! { test_decode_shape; "../tests/flat-shapes/*/" }
   fn test_decode_shape(path: &str) {
@@ -47,5 +47,49 @@ mod renderer_tests {
       .expect("Failed to read expected shape file");
 
     assert_eq!(shape_info, expected_shape_info);
+  }
+
+  test_expand_paths! { test_render_flat_shape; "../tests/flat-shapes/*/" }
+  fn test_render_flat_shape(path: &str) {
+    use gfx_backend_vulkan as gfx_backend;
+    use crate::renderer::Renderer;
+
+    const GFX_APP_NAME: &'static str = "ofl-renderer";
+    const GFX_BACKEND_VERSION: u32 = 1;
+
+    let path: &Path = Path::new(path);
+    let name = path.components().last().unwrap().as_os_str().to_str().expect("Failed to retrieve sample name");
+
+    if name != "triangle" {
+      return;
+    }
+
+    let ast_path = path.join("ast.json");
+    let ast_file = ::std::fs::File::open(ast_path).expect("Failed to open AST");
+    let ast_reader = ::std::io::BufReader::new(ast_file);
+    let ast: DefineShape = serde_json::from_reader(ast_reader).unwrap();
+
+    let instance: gfx_backend::Instance = gfx_backend::Instance::create(GFX_APP_NAME, GFX_BACKEND_VERSION);
+
+    let mut renderer = HeadlessGfxRenderer::<gfx_backend::Backend>::new(&instance, 11000/20, 8000/20)
+      .unwrap();
+
+    renderer.set_stage(ast.shape.clone());
+
+    let image = renderer.get_image().unwrap();
+
+    {
+      let actual_shape_path = path.join("tmp-shape.rs.pam");
+      let actual_shape_file = ::std::fs::File::create(actual_shape_path)
+        .expect("Failed to create actual shape file");
+      let mut pam_writer = ::std::io::BufWriter::new(actual_shape_file);
+      write_pam(&mut pam_writer, &image).expect("Failed to write PAM");
+    }
+
+//    let expected_shape_info_path = path.join("shape.rs.log");
+//    let expected_shape_info = ::std::fs::read_to_string(expected_shape_info_path)
+//      .expect("Failed to read expected shape file");
+//
+//    assert_eq!(shape_info, expected_shape_info);
   }
 }

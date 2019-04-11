@@ -1,15 +1,18 @@
 use std::mem::ManuallyDrop;
 
-use gfx_hal::{Backend as GfxBackend};
 use gfx_hal::adapter::PhysicalDevice;
+use gfx_hal::Backend as GfxBackend;
 use gfx_hal::device::Device;
 use gfx_hal::image::Extent;
 use gfx_hal::queue::family::QueueFamily;
+use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers};
 use nalgebra_glm as glm;
+use swf_tree::FillStyle;
 use swf_tree::Shape as SwfShape;
 
+use crate::decoder::shape_decoder::decode_shape;
 use crate::gfx::{AttachedImage, create_buffer, create_image, create_images, destroy_buffer, destroy_image, get_supported_depth_format, Vertex};
-use crate::renderer::{Image, Renderer, ImageMetadata};
+use crate::renderer::{Image, ImageMetadata, Renderer};
 
 const QUEUE_COUNT: usize = 1;
 const VERTEX_SHADER_SOURCE: &'static str = include_str!("shader.vert.glsl");
@@ -181,19 +184,46 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
     }
   }
 
-  fn render_stage(&mut self, _stage: &SwfShape) -> () {
+  fn render_stage(&mut self, stage: &SwfShape) -> () {
+    type IndexType = u32;
+
     let cmd_queue = &mut self.queue_group.queues[0];
 
-    // Prepare vertex and index buffers
-    let vertices: [Vertex; 3] = [
-      Vertex { position: [1.0, 1.0, 0.0], color: [1.0, 0.0, 0.0] },
-      Vertex { position: [-1.0, 1.0, 0.0], color: [0.0, 1.0, 0.0] },
-      Vertex { position: [0.0, -1.0, 0.0], color: [0.0, 0.0, 1.0] },
-    ];
-    let indices: [u32; 3] = [0, 1, 2];
+    let decoded = decode_shape(stage);
+    let mut geometry: VertexBuffers<Vertex, IndexType> = VertexBuffers::new();
+    let mut tessellator = FillTessellator::new();
 
-    let vertex_buffer_size = ::std::mem::size_of::<[Vertex; 3]>();
-    let index_buffer_size = ::std::mem::size_of::<[u32; 3]>();
+    {
+      let path = &decoded.paths[0];
+
+      let color: [f32; 3] = if let Some(ref fill) = &path.fill {
+        match fill {
+          FillStyle::Solid(ref style) => [
+            (style.color.r as f32) / 255f32,
+            (style.color.g as f32) / 255f32,
+            (style.color.b as f32) / 255f32,
+          ],
+          _ => [0.0, 1.0, 0.0],
+        }
+      } else {
+        [1.0, 0.0, 0.0]
+      };
+
+      // Compute the tessellation.
+      tessellator.tessellate_path(
+        &path.path,
+        &FillOptions::default(),
+        &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
+          Vertex {
+            position: [vertex.position.x, vertex.position.y, 0.0],
+            color,
+          }
+        }),
+      ).unwrap();
+    }
+
+    let vertex_buffer_size = ::std::mem::size_of::<Vertex>() * geometry.vertices.len();
+    let index_buffer_size = ::std::mem::size_of::<IndexType>() * geometry.indices.len();
 
     let vertex_buffer = {
       let staging_buffer = unsafe {
@@ -210,7 +240,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         let mut staging_mapping: gfx_hal::mapping::Writer<B, Vertex> = self.device
           .acquire_mapping_writer(&staging_buffer.memory, 0..staging_buffer.capacity)
           .expect("Failed to acquire mapping writer");
-        staging_mapping[..vertices.len()].copy_from_slice(&vertices);
+        staging_mapping[..geometry.vertices.len()].copy_from_slice(&geometry.vertices);
         self.device
           .release_mapping_writer(staging_mapping)
           .expect("Failed to release mapping writer");
@@ -258,10 +288,10 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       };
 
       unsafe {
-        let mut staging_mapping: gfx_hal::mapping::Writer<B, u32> = self.device
+        let mut staging_mapping: gfx_hal::mapping::Writer<B, IndexType> = self.device
           .acquire_mapping_writer(&staging_buffer.memory, 0..staging_buffer.capacity)
           .expect("Failed to acquire mapping writer");
-        staging_mapping[..indices.len()].copy_from_slice(&indices);
+        staging_mapping[..geometry.indices.len()].copy_from_slice(&geometry.indices);
         self.device
           .release_mapping_writer(staging_mapping)
           .expect("Failed to release mapping writer");
@@ -368,7 +398,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       let rasterizer = gfx_hal::pso::Rasterizer {
         depth_clamping: false,
         polygon_mode: gfx_hal::pso::PolygonMode::Fill,
-        cull_face: gfx_hal::pso::Face::BACK,
+        cull_face: gfx_hal::pso::Face::NONE,
         front_face: gfx_hal::pso::FrontFace::Clockwise,
         depth_bias: None,
         conservative: false,
@@ -466,7 +496,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
       {
         let clear_values = [
-          gfx_hal::command::ClearValue::Color(gfx_hal::command::ClearColor::Float([0.0, 0.0, 0.2, 1.0])),
+          gfx_hal::command::ClearValue::Color(gfx_hal::command::ClearColor::Float([0.0, 0.0, 0.0, 0.0])),
           gfx_hal::command::ClearValue::DepthStencil(gfx_hal::command::ClearDepthStencil(1.0, 0)),
         ];
         let mut encoder: gfx_hal::command::RenderPassInlineEncoder<_> = command_buffer.begin_render_pass_inline(
@@ -491,25 +521,21 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
           index_type: gfx_hal::IndexType::U32,
         });
 
-        let pos = vec![
-          glm::vec3(-1.5f32, 0.0f32, -4.0f32),
-          glm::vec3(0.0f32, 0.0f32, -2.5f32),
-          glm::vec3(1.5f32, 0.0f32, -4.0f32),
-        ];
+//        let pos = vec![
+//          glm::vec3(0.0f32, 0.0f32, 0.0f32),
+//        ];
 
-        for v in pos {
-          let perspective = glm::perspective(
-            1.0, // glm::radians(60.0f32),
-            (self.viewport_extent.width as f32) / (self.viewport_extent.height as f32),
-            0.1f32,
-            256.0f32,
+//        for v in pos {
+          let eye_matrix = glm::ortho(
+            0f32,
+            11000f32,
+            0f32,
+            8000f32,
+            -10f32,
+            10f32,
           );
 
-          let identiy4: glm::TMat4<f32> = glm::identity();
-
-          let mvp_matrix: glm::TMat4<f32> = perspective * glm::translate(&identiy4, &v);
-
-          let mvp_matrix_bits: Vec<u32> = mvp_matrix.data.iter().map(|x| x.to_bits()).collect();
+          let mvp_matrix_bits: Vec<u32> = eye_matrix.data.iter().map(|x| x.to_bits()).collect();
 
           encoder.push_graphics_constants(
             &pipeline_layout,
@@ -517,8 +543,9 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
             0,
             &mvp_matrix_bits[..],
           );
-          encoder.draw_indexed(0..3, 0, 0..1);
-        }
+
+          encoder.draw_indexed(0..(geometry.indices.len() as u32), 0, 0..1);
+//        }
       }
 
       command_buffer.finish();

@@ -140,11 +140,17 @@ impl ShapeDecoder {
     for layer in layers.into_iter() {
       let (fills, lines) = (layer.fills, layer.lines);
       for segment_set in fills.into_iter() {
+        if segment_set.segments.is_empty() {
+          continue;
+        }
         let (style, segments) = (segment_set.style, segment_set.segments);
         let path = segments_to_path(segments);
         paths.push(StyledPath { path, fill: Some(style), line: None });
       }
       for segment_set in lines.into_iter() {
+        if segment_set.segments.is_empty() {
+          continue;
+        }
         let (style, segments) = (segment_set.style, segment_set.segments);
         let path = segments_to_path(segments);
         paths.push(StyledPath { path, fill: None, line: Some(style) });
