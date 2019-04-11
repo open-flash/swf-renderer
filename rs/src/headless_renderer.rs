@@ -70,7 +70,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
     // Create attachments
     let attachments = unsafe {
-      create_images::<I::Backend>(&device, color_format, depth_format, &memories)
+      create_images::<I::Backend>(&device, viewport_extent, color_format, depth_format, &memories)
     };
 
     let ((color_image, color_image_view), (depth_image, depth_image_view)) = attachments.unwrap();

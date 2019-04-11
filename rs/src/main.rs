@@ -12,8 +12,8 @@ use swf_renderer::headless_renderer::HeadlessGfxRenderer;
 const GFX_APP_NAME: &'static str = "ofl-renderer";
 const GFX_BACKEND_VERSION: u32 = 1;
 const QUEUE_COUNT: usize = 1;
-const VIEWPORT_WIDTH: u32 = 1024;
-const VIEWPORT_HEIGHT: u32 = 1024;
+const VIEWPORT_WIDTH: u32 = 256;
+const VIEWPORT_HEIGHT: u32 = 256;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -40,6 +40,7 @@ fn main() {
       &renderer.framebuffer,
       &renderer.render_pass,
       &renderer.memories,
+      renderer.viewport_extent,
     );
   }
 

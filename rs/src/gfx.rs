@@ -1,7 +1,5 @@
 use nalgebra_glm as glm;
 
-const VIEWPORT_WIDTH: u32 = 1024;
-const VIEWPORT_HEIGHT: u32 = 1024;
 const VERTEX_SHADER_SOURCE: &'static str = include_str!("shader.vert.glsl");
 const FRAGMENT_SHADER_SOURCE: &'static str = include_str!("shader.frag.glsl");
 
@@ -40,7 +38,7 @@ pub unsafe fn create_buffer<B: gfx_hal::Backend>(
   usage: gfx_hal::buffer::Usage,
   memory_properties: gfx_hal::memory::Properties,
   size: u64,
-  available_memories: &gfx_hal::adapter::MemoryProperties,
+  memories: &gfx_hal::adapter::MemoryProperties,
 ) -> Result<AttachedBuffer<B>, &'static str> {
   use gfx_hal::device::Device;
 
@@ -51,7 +49,7 @@ pub unsafe fn create_buffer<B: gfx_hal::Backend>(
   let requirements: gfx_hal::memory::Requirements = device
     .get_buffer_requirements(&buffer);
 
-  let mem_type: gfx_hal::MemoryTypeId = get_memory_type_id(&available_memories.memory_types, memory_properties, requirements.type_mask);
+  let mem_type: gfx_hal::MemoryTypeId = get_memory_type_id(&memories.memory_types, memory_properties, requirements.type_mask);
 
   match device.allocate_memory(mem_type, requirements.size) {
     Err(_) => {
@@ -95,7 +93,7 @@ pub unsafe fn create_image<B: gfx_hal::Backend>(
   usage: ::gfx_hal::image::Usage,
   view_caps: ::gfx_hal::image::ViewCapabilities,
   memory_properties: gfx_hal::memory::Properties,
-  available_memories: &gfx_hal::adapter::MemoryProperties,
+  memories: &gfx_hal::adapter::MemoryProperties,
 ) -> Result<AttachedImage<B>, &'static str> {
   use gfx_hal::device::Device;
 
@@ -112,7 +110,7 @@ pub unsafe fn create_image<B: gfx_hal::Backend>(
 
   let image_requirements = device.get_image_requirements(&image);
   let image_memory_type_id = get_memory_type_id(
-    &available_memories.memory_types,
+    &memories.memory_types,
     memory_properties,
     image_requirements.type_mask,
   );
@@ -180,24 +178,26 @@ pub fn get_memory_type_id(
     .into()
 }
 
+/// Creates the images backing the framebuffer
 pub unsafe fn create_images<B: gfx_hal::Backend>(
   device: &B::Device,
+  extent: gfx_hal::image::Extent,
   color_format: gfx_hal::format::Format,
   depth_format: gfx_hal::format::Format,
-  available_memories: &gfx_hal::adapter::MemoryProperties,
+  memories: &gfx_hal::adapter::MemoryProperties,
 ) -> Result<((AttachedImage<B>, B::ImageView), (AttachedImage<B>, B::ImageView)), &'static str> {
   use gfx_hal::device::Device;
 
   let color_image = create_image::<B>(
     &device,
-    gfx_hal::image::Kind::D2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, 1, 1),
+    gfx_hal::image::Kind::D2(extent.width, extent.height, 1, 1),
     1,
     color_format,
     gfx_hal::image::Tiling::Optimal,
     gfx_hal::image::Usage::COLOR_ATTACHMENT | gfx_hal::image::Usage::TRANSFER_SRC,
     gfx_hal::image::ViewCapabilities::empty(),
     gfx_hal::memory::Properties::DEVICE_LOCAL,
-    available_memories,
+    memories,
   ).map_err(|_| "Failed to create color image")?;
 
   let color_image_view = device
@@ -221,14 +221,14 @@ pub unsafe fn create_images<B: gfx_hal::Backend>(
     Ok(color_image_view) => {
       let depth_image = create_image::<B>(
         &device,
-        gfx_hal::image::Kind::D2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, 1, 1),
+        gfx_hal::image::Kind::D2(extent.width, extent.height, 1, 1),
         1,
         depth_format,
         gfx_hal::image::Tiling::Optimal,
         gfx_hal::image::Usage::DEPTH_STENCIL_ATTACHMENT,
         gfx_hal::image::ViewCapabilities::empty(),
         gfx_hal::memory::Properties::DEVICE_LOCAL,
-        &available_memories,
+        &memories,
       );
 
       match depth_image {
@@ -273,10 +273,9 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
   framebuffer: &B::Framebuffer,
   render_pass: &B::RenderPass,
   memories: &gfx_hal::adapter::MemoryProperties,
+  extent: gfx_hal::image::Extent,
 ) -> () {
   use gfx_hal::device::Device;
-
-  let extent = gfx_hal::image::Extent { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT, depth: 1 };
 
   // Prepare vertex and index buffers
   let vertices: [Vertex; 3] = [
@@ -595,7 +594,7 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
       for v in pos {
         let perspective = glm::perspective(
           1.0, // glm::radians(60.0f32),
-          (VIEWPORT_WIDTH as f32) / (VIEWPORT_HEIGHT as f32),
+          (extent.width as f32) / (extent.height as f32),
           0.1f32,
           256.0f32,
         );
