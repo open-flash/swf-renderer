@@ -7,6 +7,7 @@ use gfx_hal::queue::family::QueueFamily;
 use env_logger;
 use swf_renderer::gfx;
 use swf_renderer::pam;
+use swf_renderer::headless_renderer::HeadlessGfxRenderer;
 
 const GFX_APP_NAME: &'static str = "ofl-renderer";
 const GFX_BACKEND_VERSION: u32 = 1;
@@ -26,139 +27,36 @@ fn main() {
 
   let instance: gfx_backend::Instance = gfx_backend::Instance::create(GFX_APP_NAME, GFX_BACKEND_VERSION);
 
-  let adapter: gfx_hal::Adapter<gfx_backend::Backend> = instance
-    .enumerate_adapters()
-    .into_iter()
-    .find(|a| {
-      a.queue_families
-        .iter()
-        .any(|qf| qf.supports_graphics())
-    })
-    .expect("Failed to find a compatible GPU adapter!");
+  let mut renderer = HeadlessGfxRenderer::<gfx_backend::Backend>::new(&instance, VIEWPORT_WIDTH as usize, VIEWPORT_HEIGHT as usize)
+    .unwrap();
 
-  let physical_device: &gfx_backend::PhysicalDevice = &adapter.physical_device;
-
-  let (device, mut queue_group): (gfx_backend::Device, gfx_hal::QueueGroup<gfx_backend::Backend, gfx_hal::queue::capability::Graphics>) = adapter
-    .open_with::<_, gfx_hal::queue::capability::Graphics>(QUEUE_COUNT, |_qf| true)
-    .expect("Failed to open GPU device");
-
-  let mut command_pool = unsafe {
-    device
-      .create_command_pool_typed(&queue_group, gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL)
-      .expect("Failed to create command pool")
-  };
-
-  let cmd_queue = &mut queue_group.queues[0];
-
-  let memory_types = physical_device
-    .memory_properties()
-    .memory_types;
-  // Prepare vertex and index buffers
-
-  let extent = gfx_hal::image::Extent { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT, depth: 1 };
-
-  let color_format = gfx_hal::format::Format::Rgba8Unorm;
-  let depth_format = gfx::get_supported_depth_format::<gfx_backend::Backend>(physical_device).expect("Failed to find supported depth format");
-
-  // Create attachments
-  let ((color_image, color_image_view), (depth_image, depth_image_view)) = unsafe {
-    gfx::create_images::<gfx_backend::Backend>(&device, color_format, depth_format, &memory_types)
-  };
-
-  //  Create renderpass
-  let (frame_buffer, render_pass) = unsafe {
-    let color_attachment: gfx_hal::pass::Attachment = gfx_hal::pass::Attachment {
-      format: Some(color_format),
-      samples: 1,
-      ops: gfx_hal::pass::AttachmentOps {
-        load: gfx_hal::pass::AttachmentLoadOp::Clear,
-        store: gfx_hal::pass::AttachmentStoreOp::Store,
-      },
-      stencil_ops: gfx_hal::pass::AttachmentOps {
-        load: gfx_hal::pass::AttachmentLoadOp::DontCare,
-        store: gfx_hal::pass::AttachmentStoreOp::DontCare,
-      },
-      layouts: std::ops::Range { start: gfx_hal::image::Layout::Undefined, end: gfx_hal::image::Layout::TransferSrcOptimal },
-    };
-    let depth_attachment: gfx_hal::pass::Attachment = gfx_hal::pass::Attachment {
-      format: Some(depth_format),
-      samples: 1,
-      ops: gfx_hal::pass::AttachmentOps {
-        load: gfx_hal::pass::AttachmentLoadOp::Clear,
-        store: gfx_hal::pass::AttachmentStoreOp::DontCare,
-      },
-      stencil_ops: gfx_hal::pass::AttachmentOps {
-        load: gfx_hal::pass::AttachmentLoadOp::DontCare,
-        store: gfx_hal::pass::AttachmentStoreOp::DontCare,
-      },
-      layouts: std::ops::Range { start: gfx_hal::image::Layout::Undefined, end: gfx_hal::image::Layout::DepthStencilAttachmentOptimal },
-    };
-    let attachments = [color_attachment, depth_attachment];
-
-    let color_ref: gfx_hal::pass::AttachmentRef = (0, gfx_hal::image::Layout::ColorAttachmentOptimal);
-    let depth_ref: gfx_hal::pass::AttachmentRef = (1, gfx_hal::image::Layout::DepthStencilAttachmentOptimal);
-
-    let subpass_desc: gfx_hal::pass::SubpassDesc = gfx_hal::pass::SubpassDesc {
-      colors: &[color_ref],
-      depth_stencil: Some(&depth_ref),
-      inputs: &[],
-      resolves: &[],
-      preserves: &[],
-    };
-
-    let dep0: gfx_hal::pass::SubpassDependency = gfx_hal::pass::SubpassDependency {
-      passes: std::ops::Range { start: gfx_hal::pass::SubpassRef::External, end: gfx_hal::pass::SubpassRef::Pass(0) },
-      stages: std::ops::Range { start: gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE, end: gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT },
-      accesses: std::ops::Range { start: gfx_hal::image::Access::MEMORY_READ, end: gfx_hal::image::Access::COLOR_ATTACHMENT_READ | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE },
-    };
-
-    let dep1: gfx_hal::pass::SubpassDependency = gfx_hal::pass::SubpassDependency {
-      passes: std::ops::Range { start: gfx_hal::pass::SubpassRef::Pass(0), end: gfx_hal::pass::SubpassRef::External },
-      stages: std::ops::Range { start: gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT, end: gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE },
-      accesses: std::ops::Range { start: gfx_hal::image::Access::COLOR_ATTACHMENT_READ | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE, end: gfx_hal::image::Access::MEMORY_READ },
-    };
-
-    let dependencies = [dep0, dep1];
-
-    let render_pass = device
-      .create_render_pass(
-        &attachments,
-        &[subpass_desc],
-        &dependencies,
-      )
-      .expect("Failed to create render pass");
-
-    let image_views = vec![&color_image_view, &depth_image_view];
-
-    let frame_buffer = device
-      .create_framebuffer(
-        &render_pass,
-        image_views.into_iter(),
-        gfx_hal::image::Extent { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT, depth: 1 },
-      )
-      .expect("Failed to create frame buffer");
-
-    (frame_buffer, render_pass)
-  };
+  let cmd_queue = &mut renderer.queue_group.queues[0];
 
   unsafe {
-    gfx::do_the_render(&device, &mut command_pool, cmd_queue, &frame_buffer, &render_pass, &memory_types);
+    gfx::do_the_render(
+      &renderer.device,
+      &mut renderer.command_pool,
+      cmd_queue,
+      &renderer.framebuffer,
+      &renderer.render_pass,
+      &renderer.memories,
+    );
   }
 
   let (dst_image, dst_image_data) = unsafe {
     let dst_image = gfx::create_image::<gfx_backend::Backend>(
-      &device,
+      &renderer.device,
       gfx_hal::image::Kind::D2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, 1, 1),
       1,
-      color_format,
+      renderer.color_format,
       gfx_hal::image::Tiling::Linear,
       gfx_hal::image::Usage::TRANSFER_DST,
       gfx_hal::image::ViewCapabilities::empty(),
       gfx_hal::memory::Properties::CPU_VISIBLE | gfx_hal::memory::Properties::COHERENT,
-      &memory_types,
+      &renderer.memories,
     ).unwrap();
     {
-      let mut copy_cmd = command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
+      let mut copy_cmd = renderer.command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
       copy_cmd.begin();
 
       {
@@ -194,10 +92,10 @@ fn main() {
           layers: 0..1,
         },
         dst_offset: gfx_hal::image::Offset { x: 0, y: 0, z: 0 },
-        extent: extent.clone(),
+        extent: renderer.viewport_extent,
       };
       copy_cmd.copy_image(
-        &color_image.image,
+        &renderer.color_image.image,
         gfx_hal::image::Layout::TransferSrcOptimal,
         &dst_image.image,
         gfx_hal::image::Layout::TransferDstOptimal,
@@ -226,13 +124,13 @@ fn main() {
 
       copy_cmd.finish();
 
-      let copy_fence = device.create_fence(false).expect("Failed to create fence");
+      let copy_fence = renderer.device.create_fence(false).expect("Failed to create fence");
       cmd_queue.submit_nosemaphores(Some(&copy_cmd), Some(&copy_fence));
-      device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
-      device.destroy_fence(copy_fence);
+      renderer.device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
+      renderer.device.destroy_fence(copy_fence);
     }
 
-    let dst_image_footprint = device.get_image_subresource_footprint(
+    let dst_image_footprint = renderer.device.get_image_subresource_footprint(
       &dst_image.image,
       gfx_hal::image::Subresource {
         aspects: gfx_hal::format::Aspects::COLOR,
@@ -242,7 +140,7 @@ fn main() {
     );
 
     let dst_image_data = {
-      let dst_mapping: gfx_hal::mapping::Reader<gfx_backend::Backend, u8> = device
+      let dst_mapping: gfx_hal::mapping::Reader<gfx_backend::Backend, u8> = renderer.device
         .acquire_mapping_reader(&dst_image.memory, dst_image_footprint.slice)
         .expect("Failed to acquire mapping reader");
 
@@ -259,7 +157,7 @@ fn main() {
         }
       }
 
-      device
+      renderer.device
         .release_mapping_reader(dst_mapping);
 
       dst_image_data
@@ -275,17 +173,7 @@ fn main() {
   }
 
   unsafe {
-    gfx::destroy_image(&device, dst_image);
-
-    device.destroy_framebuffer(frame_buffer);
-    device.destroy_render_pass(render_pass);
-
-    device.destroy_image_view(color_image_view);
-    gfx::destroy_image(&device, color_image);
-    device.destroy_image_view(depth_image_view);
-    gfx::destroy_image(&device, depth_image);
-
-    device.destroy_command_pool(command_pool.into_raw());
+    gfx::destroy_image(&renderer.device, dst_image);
   }
 
   dbg!("done");

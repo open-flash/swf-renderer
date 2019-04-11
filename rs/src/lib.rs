@@ -1,5 +1,7 @@
 pub mod gfx;
 pub mod pam;
+pub mod headless_renderer;
+pub mod renderer;
 
 pub(crate) mod decoder {
   pub(crate) mod shape_decoder;

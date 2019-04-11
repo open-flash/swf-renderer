@@ -40,7 +40,7 @@ pub unsafe fn create_buffer<B: gfx_hal::Backend>(
   usage: gfx_hal::buffer::Usage,
   memory_properties: gfx_hal::memory::Properties,
   size: u64,
-  memory_types: &[gfx_hal::MemoryType],
+  available_memories: &gfx_hal::adapter::MemoryProperties,
 ) -> Result<AttachedBuffer<B>, &'static str> {
   use gfx_hal::device::Device;
 
@@ -51,7 +51,7 @@ pub unsafe fn create_buffer<B: gfx_hal::Backend>(
   let requirements: gfx_hal::memory::Requirements = device
     .get_buffer_requirements(&buffer);
 
-  let mem_type: gfx_hal::MemoryTypeId = get_memory_type_id(memory_types, memory_properties, requirements.type_mask);
+  let mem_type: gfx_hal::MemoryTypeId = get_memory_type_id(&available_memories.memory_types, memory_properties, requirements.type_mask);
 
   match device.allocate_memory(mem_type, requirements.size) {
     Err(_) => {
@@ -95,7 +95,7 @@ pub unsafe fn create_image<B: gfx_hal::Backend>(
   usage: ::gfx_hal::image::Usage,
   view_caps: ::gfx_hal::image::ViewCapabilities,
   memory_properties: gfx_hal::memory::Properties,
-  memory_types: &[gfx_hal::MemoryType],
+  available_memories: &gfx_hal::adapter::MemoryProperties,
 ) -> Result<AttachedImage<B>, &'static str> {
   use gfx_hal::device::Device;
 
@@ -112,7 +112,7 @@ pub unsafe fn create_image<B: gfx_hal::Backend>(
 
   let image_requirements = device.get_image_requirements(&image);
   let image_memory_type_id = get_memory_type_id(
-    &memory_types,
+    &available_memories.memory_types,
     memory_properties,
     image_requirements.type_mask,
   );
@@ -184,8 +184,8 @@ pub unsafe fn create_images<B: gfx_hal::Backend>(
   device: &B::Device,
   color_format: gfx_hal::format::Format,
   depth_format: gfx_hal::format::Format,
-  memory_types: &[gfx_hal::MemoryType],
-) -> ((AttachedImage<B>, B::ImageView), (AttachedImage<B>, B::ImageView)) {
+  available_memories: &gfx_hal::adapter::MemoryProperties,
+) -> Result<((AttachedImage<B>, B::ImageView), (AttachedImage<B>, B::ImageView)), &'static str> {
   use gfx_hal::device::Device;
 
   let color_image = create_image::<B>(
@@ -197,8 +197,8 @@ pub unsafe fn create_images<B: gfx_hal::Backend>(
     gfx_hal::image::Usage::COLOR_ATTACHMENT | gfx_hal::image::Usage::TRANSFER_SRC,
     gfx_hal::image::ViewCapabilities::empty(),
     gfx_hal::memory::Properties::DEVICE_LOCAL,
-    &memory_types,
-  ).unwrap();
+    available_memories,
+  ).map_err(|_| "Failed to create color image")?;
 
   let color_image_view = device
     .create_image_view(
@@ -211,36 +211,59 @@ pub unsafe fn create_images<B: gfx_hal::Backend>(
         layers: std::ops::Range { start: 0, end: 1 },
         levels: std::ops::Range { start: 0, end: 1 },
       },
-    )
-    .expect("Failed to create color image view");
+    );
 
-  let depth_image = create_image::<B>(
-    &device,
-    gfx_hal::image::Kind::D2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, 1, 1),
-    1,
-    depth_format,
-    gfx_hal::image::Tiling::Optimal,
-    gfx_hal::image::Usage::DEPTH_STENCIL_ATTACHMENT,
-    gfx_hal::image::ViewCapabilities::empty(),
-    gfx_hal::memory::Properties::DEVICE_LOCAL,
-    &memory_types,
-  ).unwrap();
+  match color_image_view {
+    Err(_) => {
+      destroy_image(device, color_image);
+      Err("Failed to create color image view")
+    }
+    Ok(color_image_view) => {
+      let depth_image = create_image::<B>(
+        &device,
+        gfx_hal::image::Kind::D2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT, 1, 1),
+        1,
+        depth_format,
+        gfx_hal::image::Tiling::Optimal,
+        gfx_hal::image::Usage::DEPTH_STENCIL_ATTACHMENT,
+        gfx_hal::image::ViewCapabilities::empty(),
+        gfx_hal::memory::Properties::DEVICE_LOCAL,
+        &available_memories,
+      );
 
-  let depth_image_view = device
-    .create_image_view(
-      &depth_image.image,
-      gfx_hal::image::ViewKind::D2,
-      depth_format,
-      gfx_hal::format::Swizzle::NO,
-      gfx_hal::image::SubresourceRange {
-        aspects: gfx_hal::format::Aspects::DEPTH | gfx_hal::format::Aspects::STENCIL,
-        layers: std::ops::Range { start: 0, end: 1 },
-        levels: std::ops::Range { start: 0, end: 1 },
-      },
-    )
-    .expect("Failed to create color image view");
+      match depth_image {
+        Err(_) => {
+          device.destroy_image_view(color_image_view);
+          destroy_image(device, color_image);
+          Err("Failed to create depth image")
+        }
+        Ok(depth_image) => {
+          let depth_image_view = device
+            .create_image_view(
+              &depth_image.image,
+              gfx_hal::image::ViewKind::D2,
+              depth_format,
+              gfx_hal::format::Swizzle::NO,
+              gfx_hal::image::SubresourceRange {
+                aspects: gfx_hal::format::Aspects::DEPTH | gfx_hal::format::Aspects::STENCIL,
+                layers: std::ops::Range { start: 0, end: 1 },
+                levels: std::ops::Range { start: 0, end: 1 },
+              },
+            );
 
-  ((color_image, color_image_view), (depth_image, depth_image_view))
+          match depth_image_view {
+            Err(_) => {
+              destroy_image(device, depth_image);
+              device.destroy_image_view(color_image_view);
+              destroy_image(device, color_image);
+              Err("Failed to create depth image view")
+            }
+            Ok(depth_image_view) => Ok(((color_image, color_image_view), (depth_image, depth_image_view))),
+          }
+        },
+      }
+    }
+  }
 }
 
 pub unsafe fn do_the_render<B: gfx_hal::Backend>(
@@ -249,7 +272,7 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
   cmd_queue: &mut gfx_hal::queue::CommandQueue<B, gfx_hal::queue::Graphics>,
   framebuffer: &B::Framebuffer,
   render_pass: &B::RenderPass,
-  memory_types: &[gfx_hal::MemoryType],
+  memories: &gfx_hal::adapter::MemoryProperties,
 ) -> () {
   use gfx_hal::device::Device;
 
@@ -274,7 +297,7 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
         gfx_hal::buffer::Usage::TRANSFER_SRC,
         gfx_hal::memory::Properties::CPU_VISIBLE | gfx_hal::memory::Properties::COHERENT,
         vertex_buffer_size as u64,
-        &memory_types,
+        &memories,
       ).unwrap()
     };
 
@@ -294,7 +317,7 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
         gfx_hal::buffer::Usage::VERTEX | gfx_hal::buffer::Usage::TRANSFER_DST,
         gfx_hal::memory::Properties::DEVICE_LOCAL,
         vertex_buffer_size as u64,
-        &memory_types,
+        &memories,
       ).unwrap()
     };
 
@@ -323,7 +346,7 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
         gfx_hal::buffer::Usage::TRANSFER_SRC,
         gfx_hal::memory::Properties::CPU_VISIBLE | gfx_hal::memory::Properties::COHERENT,
         index_buffer_size as u64,
-        &memory_types,
+        &memories,
       ).unwrap()
     };
 
@@ -343,7 +366,7 @@ pub unsafe fn do_the_render<B: gfx_hal::Backend>(
         gfx_hal::buffer::Usage::INDEX | gfx_hal::buffer::Usage::TRANSFER_DST,
         gfx_hal::memory::Properties::DEVICE_LOCAL,
         index_buffer_size as u64,
-        &memory_types,
+        &memories,
       ).unwrap()
     };
 
