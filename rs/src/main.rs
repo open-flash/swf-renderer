@@ -38,27 +38,10 @@ fn main() {
 
   let image = renderer.get_image().unwrap();
 
-  let dst_image_data = {
-    let mut dst_image_data: Vec<u8> = Vec::new();
-
-    for y in 0..image.meta.height {
-      let row_idx: usize = y * image.meta.stride;
-      for x in 0..image.meta.width {
-        let idx: usize = row_idx + 4 * x;
-        dst_image_data.push(image.data[idx + 0]);
-        dst_image_data.push(image.data[idx + 1]);
-        dst_image_data.push(image.data[idx + 2]);
-        dst_image_data.push(image.data[idx + 3]);
-      }
-    }
-
-    dst_image_data
-  };
-
   {
     let pam_file = ::std::fs::File::create("out.pam").expect("Failed to create actual AST file");
     let mut pam_writer = ::std::io::BufWriter::new(pam_file);
-    pam::write_pam(&mut pam_writer, VIEWPORT_WIDTH as usize, VIEWPORT_HEIGHT as usize, &dst_image_data).expect("Failed to write PAM");
+    pam::write_pam(&mut pam_writer, &image).expect("Failed to write PAM");
   }
 
   dbg!("done");
