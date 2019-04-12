@@ -11,6 +11,7 @@ pub(crate) mod decoder {
 
 #[cfg(test)]
 mod renderer_tests {
+  use std::cmp::min;
   use std::io::Write;
   use std::path::Path;
 
@@ -20,6 +21,7 @@ mod renderer_tests {
   use crate::decode_shape;
   use crate::headless_renderer::HeadlessGfxRenderer;
   use crate::pam::write_pam;
+  use crate::renderer::DisplayItem;
 
   test_expand_paths! { test_decode_shape; "../tests/flat-shapes/*/" }
   fn test_decode_shape(path: &str) {
@@ -60,21 +62,35 @@ mod renderer_tests {
     let path: &Path = Path::new(path);
     let name = path.components().last().unwrap().as_os_str().to_str().expect("Failed to retrieve sample name");
 
-    if name != "triangle" {
+    if name != "triangle" && name != "squares" {
       return;
     }
 
     let ast_path = path.join("ast.json");
     let ast_file = ::std::fs::File::open(ast_path).expect("Failed to open AST");
     let ast_reader = ::std::io::BufReader::new(ast_file);
-    let ast: DefineShape = serde_json::from_reader(ast_reader).unwrap();
+    let ast: swf_tree::tags::DefineShape = serde_json::from_reader(ast_reader).unwrap();
 
     let instance: gfx_backend::Instance = gfx_backend::Instance::create(GFX_APP_NAME, GFX_BACKEND_VERSION);
 
-    let mut renderer = HeadlessGfxRenderer::<gfx_backend::Backend>::new(&instance, 11000/20, 8000/20)
+    let width_twips = ast.bounds.x_max - ast.bounds.x_min;
+    let height_twips = ast.bounds.y_max - ast.bounds.y_min;
+
+    // ceil(_ / 20)
+    let width_px = (width_twips / 20) + (if width_twips % 20 == 0 { 0 } else { 1 });
+    let height_px = (height_twips / 20) + (if height_twips % 20 == 0 { 0 } else { 1 });
+
+    let mut renderer = HeadlessGfxRenderer::<gfx_backend::Backend>::new(&instance, width_px as usize, height_px as usize)
       .unwrap();
 
-    renderer.set_stage(ast.shape.clone());
+    let matrix = {
+      let mut matrix = swf_tree::Matrix::default();
+      matrix.translate_x = -ast.bounds.x_min;
+      matrix.translate_y = -ast.bounds.y_min;
+      matrix
+    };
+
+    renderer.set_stage(DisplayItem::Shape(ast.shape.clone(), matrix));
 
     let image = renderer.get_image().unwrap();
 

@@ -4,7 +4,7 @@ use swf_tree::Shape as SwfShape;
 
 use swf_renderer::headless_renderer::HeadlessGfxRenderer;
 use swf_renderer::pam;
-use swf_renderer::renderer::Renderer;
+use swf_renderer::renderer::{Renderer, DisplayItem};
 
 const GFX_APP_NAME: &'static str = "ofl-renderer";
 const GFX_BACKEND_VERSION: u32 = 1;
@@ -34,7 +34,7 @@ fn main() {
     records: Vec::new(),
   };
 
-  renderer.set_stage(stage);
+  renderer.set_stage(DisplayItem::Shape(stage, swf_tree::Matrix::default()));
 
   let image = renderer.get_image().unwrap();
 

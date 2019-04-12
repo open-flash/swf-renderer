@@ -1,7 +1,11 @@
 use swf_tree::Shape as SwfShape;
 
+pub enum DisplayItem {
+  Shape(SwfShape, swf_tree::Matrix),
+}
+
 pub trait Renderer {
-  fn set_stage(&mut self, shape: SwfShape) -> ();
+  fn set_stage(&mut self, shape: DisplayItem) -> ();
 }
 
 /// Image metadata, format is always standard RGB with alpha (8 bits per channel).

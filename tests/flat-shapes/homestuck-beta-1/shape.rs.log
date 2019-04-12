@@ -35,7 +35,7 @@ Shape {
                     (247.0,3536.0),
                     (7907.0,297.0),
                     (247.0,3536.0),
-                    (247.0,8356.0),
+                    (247.0,8356.0)
                 ],
                 verbs: [
                     MoveTo,
@@ -70,8 +70,8 @@ Shape {
                     LineTo,
                     LineTo,
                     LineTo,
-                    LineTo,
-                ],
+                    LineTo
+                ]
             },
             fill: Some(
                 Solid(
@@ -80,12 +80,12 @@ Shape {
                             r: 255,
                             g: 255,
                             b: 255,
-                            a: 255,
-                        },
-                    },
-                ),
+                            a: 255
+                        }
+                    }
+                )
             ),
-            line: None,
+            line: None
         },
         StyledPath {
             path: Path {
@@ -110,7 +110,7 @@ Shape {
                     (6166.0,12855.0),
                     (6166.0,12355.0),
                     (247.0,8356.0),
-                    (247.0,3536.0),
+                    (247.0,3536.0)
                 ],
                 verbs: [
                     MoveTo,
@@ -133,8 +133,8 @@ Shape {
                     LineTo,
                     MoveTo,
                     LineTo,
-                    LineTo,
-                ],
+                    LineTo
+                ]
             },
             fill: None,
             line: Some(
@@ -153,25 +153,25 @@ Shape {
                                 r: 0,
                                 g: 0,
                                 b: 0,
-                                a: 255,
-                            },
-                        },
-                    ),
-                },
-            ),
+                                a: 255
+                            }
+                        }
+                    )
+                }
+            )
         },
         StyledPath {
             path: Path {
                 points: [
                     (247.0,8356.0),
                     (7907.0,5117.0),
-                    (13826.0,9116.0),
+                    (13826.0,9116.0)
                 ],
                 verbs: [
                     MoveTo,
                     LineTo,
-                    LineTo,
-                ],
+                    LineTo
+                ]
             },
             fill: None,
             line: Some(
@@ -190,12 +190,12 @@ Shape {
                                 r: 0,
                                 g: 0,
                                 b: 0,
-                                a: 255,
-                            },
-                        },
-                    ),
-                },
-            ),
-        },
-    ],
+                                a: 255
+                            }
+                        }
+                    )
+                }
+            )
+        }
+    ]
 }

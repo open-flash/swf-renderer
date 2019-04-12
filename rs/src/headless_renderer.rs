@@ -12,7 +12,7 @@ use swf_tree::Shape as SwfShape;
 
 use crate::decoder::shape_decoder::decode_shape;
 use crate::gfx::{AttachedImage, create_buffer, create_image, create_images, destroy_buffer, destroy_image, get_supported_depth_format, Vertex};
-use crate::renderer::{Image, ImageMetadata, Renderer};
+use crate::renderer::{Image, ImageMetadata, Renderer, DisplayItem};
 
 const QUEUE_COUNT: usize = 1;
 const VERTEX_SHADER_SOURCE: &'static str = include_str!("shader.vert.glsl");
@@ -20,7 +20,7 @@ const FRAGMENT_SHADER_SOURCE: &'static str = include_str!("shader.frag.glsl");
 
 pub struct HeadlessGfxRenderer<B: GfxBackend> {
   pub viewport_extent: Extent,
-  pub stage: Option<SwfShape>,
+  pub stage: Option<DisplayItem>,
 
   pub device: B::Device,
   pub queue_group: gfx_hal::queue::QueueGroup<B, gfx_hal::queue::capability::Graphics>,
@@ -184,12 +184,16 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
     }
   }
 
-  fn render_stage(&mut self, stage: &SwfShape) -> () {
+  fn render_stage(&mut self, stage: &DisplayItem) -> () {
+    let (shape, matrix) = match stage {
+      DisplayItem::Shape(ref shape, ref matrix) => (shape, matrix),
+    };
+
     type IndexType = u32;
 
     let cmd_queue = &mut self.queue_group.queues[0];
 
-    let decoded = decode_shape(stage);
+    let decoded = decode_shape(shape);
     let mut geometry: VertexBuffers<Vertex, IndexType> = VertexBuffers::new();
     let mut tessellator = FillTessellator::new();
 
@@ -528,14 +532,23 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 //        for v in pos {
           let eye_matrix = glm::ortho(
             0f32,
-            11000f32,
+            (self.viewport_extent.width * 20) as f32,
             0f32,
-            8000f32,
+            (self.viewport_extent.height * 20) as f32,
             -10f32,
             10f32,
           );
 
-          let mvp_matrix_bits: Vec<u32> = eye_matrix.data.iter().map(|x| x.to_bits()).collect();
+          let world_matrix = glm::make_mat4x4(
+            &[
+              f64::from(matrix.scale_x) as f32, f64::from(matrix.rotate_skew0) as f32, 0.0, 0.0,
+              f64::from(matrix.rotate_skew1) as f32, f64::from(matrix.scale_y) as f32, 0.0, 0.0,
+              0.0, 0.0, 1.0, 0.0,
+              matrix.translate_x as f32, matrix.translate_y as f32, 0.0, 1.0,
+            ]
+          );
+
+          let mvp_matrix_bits: Vec<u32> = (eye_matrix * world_matrix).data.iter().map(|x| x.to_bits()).collect();
 
           encoder.push_graphics_constants(
             &pipeline_layout,
@@ -729,8 +742,9 @@ impl<B: GfxBackend> Drop for HeadlessGfxRenderer<B> {
 }
 
 impl<B: GfxBackend> Renderer for HeadlessGfxRenderer<B> {
-  fn set_stage(&mut self, shape: SwfShape) -> () {
-    self.stage = Some(shape);
+  // TODO: Pass a list instead of a single item
+  fn set_stage(&mut self, display_list: DisplayItem) -> () {
+    self.stage = Some(display_list);
   }
 
 

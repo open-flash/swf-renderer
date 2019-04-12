@@ -13,7 +13,7 @@ Shape {
                     (4039.0,3650.0),
                     (4039.0,2320.0),
                     (5369.0,2320.0),
-                    (5369.0,2850.0),
+                    (5369.0,2850.0)
                 ],
                 verbs: [
                     MoveTo,
@@ -26,8 +26,8 @@ Shape {
                     LineTo,
                     LineTo,
                     LineTo,
-                    LineTo,
-                ],
+                    LineTo
+                ]
             },
             fill: Some(
                 Solid(
@@ -36,12 +36,12 @@ Shape {
                             r: 255,
                             g: 0,
                             b: 0,
-                            a: 255,
-                        },
-                    },
-                ),
+                            a: 255
+                        }
+                    }
+                )
             ),
-            line: None,
+            line: None
         },
         StyledPath {
             path: Path {
@@ -59,7 +59,7 @@ Shape {
                     (6229.0,5050.0),
                     (5859.0,5050.0),
                     (5859.0,4680.0),
-                    (6229.0,4680.0),
+                    (6229.0,4680.0)
                 ],
                 verbs: [
                     MoveTo,
@@ -75,8 +75,8 @@ Shape {
                     LineTo,
                     LineTo,
                     LineTo,
-                    LineTo,
-                ],
+                    LineTo
+                ]
             },
             fill: Some(
                 Solid(
@@ -85,12 +85,12 @@ Shape {
                             r: 0,
                             g: 0,
                             b: 255,
-                            a: 255,
-                        },
-                    },
-                ),
+                            a: 255
+                        }
+                    }
+                )
             ),
-            line: None,
+            line: None
         },
         StyledPath {
             path: Path {
@@ -101,7 +101,7 @@ Shape {
                     (4689.0,3650.0),
                     (5369.0,3650.0),
                     (5369.0,2850.0),
-                    (5369.0,2320.0),
+                    (5369.0,2320.0)
                 ],
                 verbs: [
                     MoveTo,
@@ -110,8 +110,8 @@ Shape {
                     LineTo,
                     LineTo,
                     LineTo,
-                    LineTo,
-                ],
+                    LineTo
+                ]
             },
             fill: Some(
                 Solid(
@@ -120,12 +120,12 @@ Shape {
                             r: 0,
                             g: 255,
                             b: 0,
-                            a: 255,
-                        },
-                    },
-                ),
+                            a: 255
+                        }
+                    }
+                )
             ),
-            line: None,
+            line: None
         },
         StyledPath {
             path: Path {
@@ -134,15 +134,15 @@ Shape {
                     (5859.0,5050.0),
                     (6229.0,5050.0),
                     (6229.0,4680.0),
-                    (5859.0,4680.0),
+                    (5859.0,4680.0)
                 ],
                 verbs: [
                     MoveTo,
                     LineTo,
                     LineTo,
                     LineTo,
-                    LineTo,
-                ],
+                    LineTo
+                ]
             },
             fill: Some(
                 Solid(
@@ -151,12 +151,12 @@ Shape {
                             r: 255,
                             g: 255,
                             b: 0,
-                            a: 255,
-                        },
-                    },
-                ),
+                            a: 255
+                        }
+                    }
+                )
             ),
-            line: None,
-        },
-    ],
+            line: None
+        }
+    ]
 }
