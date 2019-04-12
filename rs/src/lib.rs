@@ -11,7 +11,6 @@ pub(crate) mod decoder {
 
 #[cfg(test)]
 mod renderer_tests {
-  use std::cmp::min;
   use std::io::Write;
   use std::path::Path;
 

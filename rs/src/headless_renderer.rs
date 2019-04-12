@@ -8,7 +8,6 @@ use gfx_hal::queue::family::QueueFamily;
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers};
 use nalgebra_glm as glm;
 use swf_tree::FillStyle;
-use swf_tree::Shape as SwfShape;
 
 use crate::decoder::shape_decoder::decode_shape;
 use crate::gfx::{AttachedImage, create_buffer, create_image, create_images, destroy_buffer, destroy_image, get_supported_depth_format, Vertex};
