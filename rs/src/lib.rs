@@ -50,6 +50,13 @@ mod renderer_tests {
     assert_eq!(shape_info, expected_shape_info);
   }
 
+  fn is_whitelisted(name: &str) -> bool {
+    match name {
+      "squares" | "triangle" => true,
+      _ => false,
+    }
+  }
+
   test_expand_paths! { test_render_flat_shape; "../tests/flat-shapes/*/" }
   fn test_render_flat_shape(path: &str) {
     use gfx_backend_vulkan as gfx_backend;
@@ -61,7 +68,8 @@ mod renderer_tests {
     let path: &Path = Path::new(path);
     let name = path.components().last().unwrap().as_os_str().to_str().expect("Failed to retrieve sample name");
 
-    if name != "triangle" && name != "squares" {
+    if !is_whitelisted(&name) {
+      eprintln!("Skipping: {}", &name);
       return;
     }
 
@@ -82,6 +90,8 @@ mod renderer_tests {
     let mut renderer = HeadlessGfxRenderer::<gfx_backend::Backend>::new(&instance, width_px as usize, height_px as usize)
       .unwrap();
 
+    let shape_id = renderer.define_shape(&ast);
+
     let matrix = {
       let mut matrix = swf_tree::Matrix::default();
       matrix.translate_x = -ast.bounds.x_min;
@@ -89,7 +99,7 @@ mod renderer_tests {
       matrix
     };
 
-    renderer.set_stage(DisplayItem::Shape(ast.shape.clone(), matrix));
+    renderer.set_stage(DisplayItem::Shape(shape_id, matrix));
 
     let image = renderer.get_image().unwrap();
 

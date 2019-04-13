@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::mem::ManuallyDrop;
 
 use gfx_hal::adapter::PhysicalDevice;
@@ -5,21 +6,21 @@ use gfx_hal::Backend as GfxBackend;
 use gfx_hal::device::Device;
 use gfx_hal::image::Extent;
 use gfx_hal::queue::family::QueueFamily;
-use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers};
 use nalgebra_glm as glm;
-use swf_tree::FillStyle;
 
-use crate::decoder::shape_decoder::decode_shape;
-use crate::gfx::{AttachedImage, create_buffer, create_image, create_images, destroy_buffer, destroy_image, get_supported_depth_format, Vertex};
-use crate::renderer::{Image, ImageMetadata, Renderer, DisplayItem};
+use crate::gfx::{AttachedBuffer, AttachedImage, create_buffer, create_image, create_images, destroy_buffer, destroy_image, get_supported_depth_format, Vertex};
+use crate::renderer::{DisplayItem, GfxSymbol, Image, ImageMetadata, Renderer, ShapeStore};
 
 const QUEUE_COUNT: usize = 1;
 const VERTEX_SHADER_SOURCE: &'static str = include_str!("shader.vert.glsl");
 const FRAGMENT_SHADER_SOURCE: &'static str = include_str!("shader.frag.glsl");
 
+
 pub struct HeadlessGfxRenderer<B: GfxBackend> {
   pub viewport_extent: Extent,
   pub stage: Option<DisplayItem>,
+  pub shape_store: ShapeStore,
+  pub shape_meshes: HashMap<usize, ShapeMesh<B>>,
 
   pub device: B::Device,
   pub queue_group: gfx_hal::queue::QueueGroup<B, gfx_hal::queue::capability::Graphics>,
@@ -36,6 +37,12 @@ pub struct HeadlessGfxRenderer<B: GfxBackend> {
 
   pub render_pass: ManuallyDrop<B::RenderPass>,
   pub framebuffer: ManuallyDrop<B::Framebuffer>,
+}
+
+pub struct ShapeMesh<B: GfxBackend> {
+  vertices: ManuallyDrop<AttachedBuffer<B>>,
+  indices: ManuallyDrop<AttachedBuffer<B>>,
+  index_count: usize,
 }
 
 impl<B: GfxBackend> HeadlessGfxRenderer<B> {
@@ -157,6 +164,8 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
     Ok(HeadlessGfxRenderer::<I::Backend> {
       viewport_extent,
       stage: None,
+      shape_store: ShapeStore::new(),
+      shape_meshes: HashMap::new(),
       device,
       queue_group,
       command_pool: ManuallyDrop::new(command_pool),
@@ -172,162 +181,151 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
     })
   }
 
+  pub fn define_shape(&mut self, tag: &swf_tree::tags::DefineShape) -> usize {
+    self.shape_store.define_shape(tag)
+  }
+
   pub fn get_image(&mut self) -> Result<Image, &'static str> {
     match self.stage.take() {
       None => Err("Failed to render: self.stage is None"),
       Some(stage) => {
-        self.render_stage(&stage);
-        self.stage = Some(stage);
+        let display_list = [stage];
+        self.render_stage(&display_list);
+        let [old_stage] = display_list;
+        self.stage = Some(old_stage);
         Ok(self.download_image())
       }
     }
   }
 
-  fn render_stage(&mut self, stage: &DisplayItem) -> () {
-    let (shape, matrix) = match stage {
-      DisplayItem::Shape(ref shape, ref matrix) => (shape, matrix),
-    };
+  fn get_shape_mesh(&mut self, shape_id: usize) -> &ShapeMesh<B> {
+    match self.shape_store.get(shape_id) {
+      Some(GfxSymbol::Shape(symbol)) => {
+        let cmd_queue = &mut self.queue_group.queues[0];
 
-    type IndexType = u32;
+        type IndexType = u32;
 
-    let cmd_queue = &mut self.queue_group.queues[0];
+        let index_count: usize = symbol.mesh.indices.len();
+        let vertex_buffer_size = ::std::mem::size_of::<Vertex>() * symbol.mesh.vertices.len();
+        let index_buffer_size = ::std::mem::size_of::<IndexType>() * index_count;
 
-    let decoded = decode_shape(shape);
-    let mut geometry: VertexBuffers<Vertex, IndexType> = VertexBuffers::new();
-    let mut tessellator = FillTessellator::new();
+        let vertices = {
+          let staging_buffer = unsafe {
+            create_buffer::<B>(
+              &self.device,
+              gfx_hal::buffer::Usage::TRANSFER_SRC,
+              gfx_hal::memory::Properties::CPU_VISIBLE | gfx_hal::memory::Properties::COHERENT,
+              vertex_buffer_size as u64,
+              &self.memories,
+            ).unwrap()
+          };
 
-    {
-      let path = &decoded.paths[0];
-
-      let color: [f32; 3] = if let Some(ref fill) = &path.fill {
-        match fill {
-          FillStyle::Solid(ref style) => [
-            (style.color.r as f32) / 255f32,
-            (style.color.g as f32) / 255f32,
-            (style.color.b as f32) / 255f32,
-          ],
-          _ => [0.0, 1.0, 0.0],
-        }
-      } else {
-        [1.0, 0.0, 0.0]
-      };
-
-      // Compute the tessellation.
-      tessellator.tessellate_path(
-        &path.path,
-        &FillOptions::default(),
-        &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
-          Vertex {
-            position: [vertex.position.x, vertex.position.y, 0.0],
-            color,
+          unsafe {
+            let mut staging_mapping: gfx_hal::mapping::Writer<B, Vertex> = self.device
+              .acquire_mapping_writer(&staging_buffer.memory, 0..staging_buffer.capacity)
+              .expect("Failed to acquire mapping writer");
+            staging_mapping[..symbol.mesh.vertices.len()].copy_from_slice(&symbol.mesh.vertices);
+            self.device
+              .release_mapping_writer(staging_mapping)
+              .expect("Failed to release mapping writer");
           }
-        }),
-      ).unwrap();
+
+          let vertex_buffer = unsafe {
+            create_buffer::<B>(
+              &self.device,
+              gfx_hal::buffer::Usage::VERTEX | gfx_hal::buffer::Usage::TRANSFER_DST,
+              gfx_hal::memory::Properties::DEVICE_LOCAL,
+              vertex_buffer_size as u64,
+              &self.memories,
+            ).unwrap()
+          };
+
+          unsafe {
+            let mut copy_cmd = self.command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
+            copy_cmd.begin();
+            copy_cmd.copy_buffer(
+              &staging_buffer.buffer,
+              &vertex_buffer.buffer,
+              &[gfx_hal::command::BufferCopy { src: 0, dst: 0, size: vertex_buffer_size as u64 }],
+            );
+            copy_cmd.finish();
+            let copy_fence = self.device.create_fence(false).expect("Failed to create fence");
+            cmd_queue.submit_nosemaphores(Some(&copy_cmd), Some(&copy_fence));
+            self.device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
+            self.device.destroy_fence(copy_fence);
+          }
+
+          unsafe { destroy_buffer(&self.device, staging_buffer); }
+
+          vertex_buffer
+        };
+
+
+        let indices = {
+          let staging_buffer = unsafe {
+            create_buffer::<B>(
+              &self.device,
+              gfx_hal::buffer::Usage::TRANSFER_SRC,
+              gfx_hal::memory::Properties::CPU_VISIBLE | gfx_hal::memory::Properties::COHERENT,
+              index_buffer_size as u64,
+              &self.memories,
+            ).unwrap()
+          };
+
+          unsafe {
+            let mut staging_mapping: gfx_hal::mapping::Writer<B, IndexType> = self.device
+              .acquire_mapping_writer(&staging_buffer.memory, 0..staging_buffer.capacity)
+              .expect("Failed to acquire mapping writer");
+            staging_mapping[..symbol.mesh.indices.len()].copy_from_slice(&symbol.mesh.indices);
+            self.device
+              .release_mapping_writer(staging_mapping)
+              .expect("Failed to release mapping writer");
+          }
+
+          let index_buffer = unsafe {
+            create_buffer::<B>(
+              &self.device,
+              gfx_hal::buffer::Usage::INDEX | gfx_hal::buffer::Usage::TRANSFER_DST,
+              gfx_hal::memory::Properties::DEVICE_LOCAL,
+              index_buffer_size as u64,
+              &self.memories,
+            ).unwrap()
+          };
+
+          unsafe {
+            let mut copy_cmd = self.command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
+            copy_cmd.begin();
+            copy_cmd.copy_buffer(
+              &staging_buffer.buffer,
+              &index_buffer.buffer,
+              &[gfx_hal::command::BufferCopy { src: 0, dst: 0, size: index_buffer_size as u64 }],
+            );
+            copy_cmd.finish();
+            let copy_fence = self.device.create_fence(false).expect("Failed to create fence");
+            cmd_queue.submit_nosemaphores(Some(&copy_cmd), Some(&copy_fence));
+            self.device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
+            self.device.destroy_fence(copy_fence);
+          }
+
+          unsafe { destroy_buffer(&self.device, staging_buffer); }
+
+          index_buffer
+        };
+
+        let shape_mesh = ShapeMesh {
+          vertices: ManuallyDrop::new(vertices),
+          indices: ManuallyDrop::new(indices),
+          index_count,
+        };
+        self.shape_meshes.entry(shape_id).or_insert(shape_mesh)
+      }
+      _ => panic!("ShapeNotFound"),
     }
+  }
 
-    let vertex_buffer_size = ::std::mem::size_of::<Vertex>() * geometry.vertices.len();
-    let index_buffer_size = ::std::mem::size_of::<IndexType>() * geometry.indices.len();
-
-    let vertex_buffer = {
-      let staging_buffer = unsafe {
-        create_buffer::<B>(
-          &self.device,
-          gfx_hal::buffer::Usage::TRANSFER_SRC,
-          gfx_hal::memory::Properties::CPU_VISIBLE | gfx_hal::memory::Properties::COHERENT,
-          vertex_buffer_size as u64,
-          &self.memories,
-        ).unwrap()
-      };
-
-      unsafe {
-        let mut staging_mapping: gfx_hal::mapping::Writer<B, Vertex> = self.device
-          .acquire_mapping_writer(&staging_buffer.memory, 0..staging_buffer.capacity)
-          .expect("Failed to acquire mapping writer");
-        staging_mapping[..geometry.vertices.len()].copy_from_slice(&geometry.vertices);
-        self.device
-          .release_mapping_writer(staging_mapping)
-          .expect("Failed to release mapping writer");
-      }
-
-      let vertex_buffer = unsafe {
-        create_buffer::<B>(
-          &self.device,
-          gfx_hal::buffer::Usage::VERTEX | gfx_hal::buffer::Usage::TRANSFER_DST,
-          gfx_hal::memory::Properties::DEVICE_LOCAL,
-          vertex_buffer_size as u64,
-          &self.memories,
-        ).unwrap()
-      };
-
-      unsafe {
-        let mut copy_cmd = self.command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
-        copy_cmd.begin();
-        copy_cmd.copy_buffer(
-          &staging_buffer.buffer,
-          &vertex_buffer.buffer,
-          &[gfx_hal::command::BufferCopy { src: 0, dst: 0, size: vertex_buffer_size as u64 }],
-        );
-        copy_cmd.finish();
-        let copy_fence = self.device.create_fence(false).expect("Failed to create fence");
-        cmd_queue.submit_nosemaphores(Some(&copy_cmd), Some(&copy_fence));
-        self.device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
-        self.device.destroy_fence(copy_fence);
-      }
-
-      unsafe { destroy_buffer(&self.device, staging_buffer); }
-
-      vertex_buffer
-    };
-
-    let index_buffer = {
-      let staging_buffer = unsafe {
-        create_buffer::<B>(
-          &self.device,
-          gfx_hal::buffer::Usage::TRANSFER_SRC,
-          gfx_hal::memory::Properties::CPU_VISIBLE | gfx_hal::memory::Properties::COHERENT,
-          index_buffer_size as u64,
-          &self.memories,
-        ).unwrap()
-      };
-
-      unsafe {
-        let mut staging_mapping: gfx_hal::mapping::Writer<B, IndexType> = self.device
-          .acquire_mapping_writer(&staging_buffer.memory, 0..staging_buffer.capacity)
-          .expect("Failed to acquire mapping writer");
-        staging_mapping[..geometry.indices.len()].copy_from_slice(&geometry.indices);
-        self.device
-          .release_mapping_writer(staging_mapping)
-          .expect("Failed to release mapping writer");
-      }
-
-      let index_buffer = unsafe {
-        create_buffer::<B>(
-          &self.device,
-          gfx_hal::buffer::Usage::INDEX | gfx_hal::buffer::Usage::TRANSFER_DST,
-          gfx_hal::memory::Properties::DEVICE_LOCAL,
-          index_buffer_size as u64,
-          &self.memories,
-        ).unwrap()
-      };
-
-      unsafe {
-        let mut copy_cmd = self.command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
-        copy_cmd.begin();
-        copy_cmd.copy_buffer(
-          &staging_buffer.buffer,
-          &index_buffer.buffer,
-          &[gfx_hal::command::BufferCopy { src: 0, dst: 0, size: index_buffer_size as u64 }],
-        );
-        copy_cmd.finish();
-        let copy_fence = self.device.create_fence(false).expect("Failed to create fence");
-        cmd_queue.submit_nosemaphores(Some(&copy_cmd), Some(&copy_fence));
-        self.device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
-        self.device.destroy_fence(copy_fence);
-      }
-
-      unsafe { destroy_buffer(&self.device, staging_buffer); }
-
-      index_buffer
+  fn render_stage(&mut self, display_list: &[DisplayItem]) -> () {
+    let (shape_id, matrix) = match display_list[0] {
+      DisplayItem::Shape(ref id, ref matrix) => (*id, matrix),
     };
 
     let (vertex_shader_module, fragment_shader_module, descriptor_set_layout, pipeline_layout, pipeline_cache, pipeline) = unsafe {
@@ -517,51 +515,58 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
         encoder.bind_graphics_pipeline(&pipeline);
 
-        encoder.bind_vertex_buffers(0, vec![(&vertex_buffer.buffer, 0)]);
-        encoder.bind_index_buffer(gfx_hal::buffer::IndexBufferView {
-          buffer: &index_buffer.buffer,
-          offset: 0,
-          index_type: gfx_hal::IndexType::U32,
-        });
+        let index_count: usize = {
+          let mesh = self.get_shape_mesh(shape_id);
+
+          encoder.bind_vertex_buffers(0, vec![(&mesh.vertices.buffer, 0)]);
+          encoder.bind_index_buffer(gfx_hal::buffer::IndexBufferView {
+            buffer: &mesh.indices.buffer,
+            offset: 0,
+            index_type: gfx_hal::IndexType::U32,
+          });
+
+          mesh.index_count
+        };
 
 //        let pos = vec![
 //          glm::vec3(0.0f32, 0.0f32, 0.0f32),
 //        ];
 
 //        for v in pos {
-          let eye_matrix = glm::ortho(
-            0f32,
-            (self.viewport_extent.width * 20) as f32,
-            0f32,
-            (self.viewport_extent.height * 20) as f32,
-            -10f32,
-            10f32,
-          );
+        let eye_matrix = glm::ortho(
+          0f32,
+          (self.viewport_extent.width * 20) as f32,
+          0f32,
+          (self.viewport_extent.height * 20) as f32,
+          -10f32,
+          10f32,
+        );
 
-          let world_matrix = glm::make_mat4x4(
-            &[
-              f64::from(matrix.scale_x) as f32, f64::from(matrix.rotate_skew0) as f32, 0.0, 0.0,
-              f64::from(matrix.rotate_skew1) as f32, f64::from(matrix.scale_y) as f32, 0.0, 0.0,
-              0.0, 0.0, 1.0, 0.0,
-              matrix.translate_x as f32, matrix.translate_y as f32, 0.0, 1.0,
-            ]
-          );
+        let world_matrix = glm::make_mat4x4(
+          &[
+            f64::from(matrix.scale_x) as f32, f64::from(matrix.rotate_skew0) as f32, 0.0, 0.0,
+            f64::from(matrix.rotate_skew1) as f32, f64::from(matrix.scale_y) as f32, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            matrix.translate_x as f32, matrix.translate_y as f32, 0.0, 1.0,
+          ]
+        );
 
-          let mvp_matrix_bits: Vec<u32> = (eye_matrix * world_matrix).data.iter().map(|x| x.to_bits()).collect();
+        let mvp_matrix_bits: Vec<u32> = (eye_matrix * world_matrix).data.iter().map(|x| x.to_bits()).collect();
 
-          encoder.push_graphics_constants(
-            &pipeline_layout,
-            gfx_hal::pso::ShaderStageFlags::VERTEX,
-            0,
-            &mvp_matrix_bits[..],
-          );
+        encoder.push_graphics_constants(
+          &pipeline_layout,
+          gfx_hal::pso::ShaderStageFlags::VERTEX,
+          0,
+          &mvp_matrix_bits[..],
+        );
 
-          encoder.draw_indexed(0..(geometry.indices.len() as u32), 0, 0..1);
+        encoder.draw_indexed(0..(index_count as u32), 0, 0..1);
 //        }
       }
 
       command_buffer.finish();
 
+      let cmd_queue = &mut self.queue_group.queues[0];
       let cmd_fence = self.device.create_fence(false).expect("Failed to create fence");
       cmd_queue.submit_nosemaphores(Some(&command_buffer), Some(&cmd_fence));
       self.device.wait_for_fence(&cmd_fence, core::u64::MAX).expect("Failed to wait for fence");
@@ -579,8 +584,6 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       self.device.destroy_descriptor_set_layout(descriptor_set_layout);
       self.device.destroy_shader_module(fragment_shader_module);
       self.device.destroy_shader_module(vertex_shader_module);
-      destroy_buffer(&self.device, index_buffer);
-      destroy_buffer(&self.device, vertex_buffer);
     }
   }
 
@@ -724,6 +727,11 @@ impl<B: GfxBackend> Drop for HeadlessGfxRenderer<B> {
       self.device
         .wait_idle()
         .expect("Failed to wait for device to be idle");
+
+      for (_, mesh) in self.shape_meshes.drain() {
+        destroy_buffer(&self.device, ManuallyDrop::into_inner(mesh.indices));
+        destroy_buffer(&self.device, ManuallyDrop::into_inner(mesh.vertices));
+      }
 
       self.device.destroy_framebuffer(ManuallyDrop::into_inner(read(&self.framebuffer)));
       self.device.destroy_render_pass(ManuallyDrop::into_inner(read(&self.render_pass)));
