@@ -7,3 +7,4 @@ ts-out.png
 tmp-*
 local-*
 node_modules/
+*.cache
