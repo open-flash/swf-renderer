@@ -80,7 +80,15 @@
         "line_style": 1
       },
       {
-        "type": "curved-edge",
+        "type": "edge",
+        "delta": {
+          "x": 345,
+          "y": -939
+        },
+        "morph_delta": {
+          "x": 345,
+          "y": -939
+        },
         "control_delta": {
           "x": -51,
           "y": -461
@@ -88,18 +96,10 @@
         "morph_control_delta": {
           "x": -51,
           "y": -461
-        },
-        "anchor_delta": {
-          "x": 396,
-          "y": -478
-        },
-        "morph_anchor_delta": {
-          "x": 396,
-          "y": -478
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 0,
           "y": 270
@@ -110,7 +110,15 @@
         }
       },
       {
-        "type": "curved-edge",
+        "type": "edge",
+        "delta": {
+          "x": 1820,
+          "y": -450
+        },
+        "morph_delta": {
+          "x": 1604,
+          "y": -462
+        },
         "control_delta": {
           "x": 1093,
           "y": -588
@@ -118,18 +126,10 @@
         "morph_control_delta": {
           "x": 949,
           "y": -592
-        },
-        "anchor_delta": {
-          "x": 727,
-          "y": 138
-        },
-        "morph_anchor_delta": {
-          "x": 655,
-          "y": 130
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -240,
           "y": 410
@@ -140,7 +140,15 @@
         }
       },
       {
-        "type": "curved-edge",
+        "type": "edge",
+        "delta": {
+          "x": 450,
+          "y": 410
+        },
+        "morph_delta": {
+          "x": 386,
+          "y": 410
+        },
         "control_delta": {
           "x": 324,
           "y": 114
@@ -148,18 +156,10 @@
         "morph_control_delta": {
           "x": 260,
           "y": 114
-        },
-        "anchor_delta": {
-          "x": 126,
-          "y": 296
-        },
-        "morph_anchor_delta": {
-          "x": 126,
-          "y": 296
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 290,
           "y": 0
@@ -170,7 +170,7 @@
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -307,
           "y": 535
@@ -181,26 +181,22 @@
         }
       },
       {
-        "type": "curved-edge",
+        "type": "edge",
+        "delta": {
+          "x": -125,
+          "y": -309
+        },
+        "morph_delta": {
+          "x": -53,
+          "y": -313
+        },
         "control_delta": {
           "x": -24,
           "y": -168
-        },
-        "morph_control_delta": {
-          "x": -27,
-          "y": -157
-        },
-        "anchor_delta": {
-          "x": -101,
-          "y": -141
-        },
-        "morph_anchor_delta": {
-          "x": -26,
-          "y": -156
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -828,
           "y": 384
@@ -211,7 +207,7 @@
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 0,
           "y": -310
@@ -222,7 +218,15 @@
         }
       },
       {
-        "type": "curved-edge",
+        "type": "edge",
+        "delta": {
+          "x": -1056,
+          "y": 97
+        },
+        "morph_delta": {
+          "x": -1156,
+          "y": 97
+        },
         "control_delta": {
           "x": -462,
           "y": 211
@@ -230,18 +234,10 @@
         "morph_control_delta": {
           "x": -722,
           "y": 211
-        },
-        "anchor_delta": {
-          "x": -594,
-          "y": -114
-        },
-        "morph_anchor_delta": {
-          "x": -434,
-          "y": -114
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 0,
           "y": 541
@@ -252,7 +248,7 @@
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -1,
           "y": -1
@@ -263,7 +259,15 @@
         }
       },
       {
-        "type": "curved-edge",
+        "type": "edge",
+        "delta": {
+          "x": -348,
+          "y": -638
+        },
+        "morph_delta": {
+          "x": -349,
+          "y": -639
+        },
         "control_delta": {
           "x": -306,
           "y": -246
@@ -271,14 +275,6 @@
         "morph_control_delta": {
           "x": -307,
           "y": -247
-        },
-        "anchor_delta": {
-          "x": -42,
-          "y": -392
-        },
-        "morph_anchor_delta": {
-          "x": -42,
-          "y": -392
         }
       }
     ]

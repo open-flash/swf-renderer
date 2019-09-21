@@ -6,8 +6,9 @@ import {
   MorphLineStyle as SwfMorphLineStyle,
   ShapeRecordType as SwfShapeRecordType,
   tags,
+  Vector2D,
 } from "swf-tree";
-import { MorphCurvedEdge, MorphStraightEdge, MorphStyleChange } from "swf-tree/shape-records";
+import { MorphEdge, MorphStyleChange } from "swf-tree/shape-records";
 import { normalizeStraightSRgba } from "./decode-swf-shape";
 import { MorphFillStyle, MorphFillStyleType } from "./morph-fill-style";
 import { MorphLineStyle, MorphLineStyleType } from "./morph-line-style";
@@ -25,11 +26,8 @@ export function decodeSwfMorphShape(tag: tags.DefineMorphShape): MorphShape {
 
   for (const record of tag.shape.records) {
     switch (record.type) {
-      case SwfShapeRecordType.CurvedEdge:
-        converter.applyCurvedEdge(record);
-        break;
-      case SwfShapeRecordType.StraightEdge:
-        converter.applyStraightEdge(record);
+      case SwfShapeRecordType.Edge:
+        converter.applyEdge(record);
         break;
       case SwfShapeRecordType.StyleChange:
         converter.applyStyleChange(record);
@@ -148,7 +146,10 @@ interface LineSegmentSet {
 /**
  * Create a new layer with the supplied styles.
  */
-function createStyleLayer(swfFillStyles: SwfMorphFillStyle[], swfLineStyles: SwfMorphLineStyle[]): StyleLayer {
+function createStyleLayer(
+  swfFillStyles: SwfMorphFillStyle[],
+  swfLineStyles: SwfMorphLineStyle[],
+): StyleLayer {
   const fills: FillSegmentSet[] = [];
   for (const swfFillStyle of swfFillStyles) {
     fills.push({
@@ -323,38 +324,42 @@ class SwfMorphShapeDecoder {
     }
   }
 
-  applyStraightEdge(record: MorphStraightEdge): void {
+  applyEdge(record: MorphEdge): void {
     const endX: [number, number] = [this.x[0] + record.delta.x, this.x[1] + record.morphDelta.x];
     const endY: [number, number] = [this.y[0] + record.delta.y, this.y[1] + record.morphDelta.y];
 
-    if (this.leftFill !== undefined) {
-      this.leftFill.segments.push(createStraightSegment(this.x, this.y, endX, endY));
-    }
-    if (this.rightFill !== undefined) {
-      this.rightFill.segments.push(createStraightSegment(endX, endY, this.x, this.y));
-    }
-    if (this.lineFill !== undefined) {
-      this.lineFill.segments.push(createStraightSegment(this.x, this.y, endX, endY));
-    }
+    if (record.controlDelta === undefined && record.morphControlDelta === undefined) {
+      // Straight edge
+      if (this.leftFill !== undefined) {
+        this.leftFill.segments.push(createStraightSegment(this.x, this.y, endX, endY));
+      }
+      if (this.rightFill !== undefined) {
+        this.rightFill.segments.push(createStraightSegment(endX, endY, this.x, this.y));
+      }
+      if (this.lineFill !== undefined) {
+        this.lineFill.segments.push(createStraightSegment(this.x, this.y, endX, endY));
+      }
+    } else {
+      // Curved edge
+      const controlDelta: Vector2D = record.controlDelta !== undefined
+        ? record.controlDelta
+        : {x: record.delta.x / 2, y: record.delta.y / 2};
+      const morphControlDelta: Vector2D = record.morphControlDelta !== undefined
+        ? record.morphControlDelta
+        : {x: record.morphDelta.x / 2, y: record.morphDelta.y / 2};
 
-    this.x = endX;
-    this.y = endY;
-  }
+      const controlX: [number, number] = [this.x[0] + controlDelta.x, this.x[1] + morphControlDelta.x];
+      const controlY: [number, number] = [this.y[0] + controlDelta.y, this.y[1] + morphControlDelta.y];
 
-  applyCurvedEdge(record: MorphCurvedEdge): void {
-    const controlX: [number, number] = [this.x[0] + record.controlDelta.x, this.x[1] + record.morphControlDelta.x];
-    const controlY: [number, number] = [this.y[0] + record.controlDelta.y, this.y[1] + record.morphControlDelta.y];
-    const endX: [number, number] = [controlX[0] + record.anchorDelta.x, controlX[1] + record.morphAnchorDelta.x];
-    const endY: [number, number] = [controlY[0] + record.anchorDelta.y, controlY[1] + record.morphAnchorDelta.y];
-
-    if (this.leftFill !== undefined) {
-      this.leftFill.segments.push(createCurvedSegment(this.x, this.y, controlX, controlY, endX, endY));
-    }
-    if (this.rightFill !== undefined) {
-      this.rightFill.segments.push(createCurvedSegment(endX, endY, controlX, controlY, this.x, this.y));
-    }
-    if (this.lineFill !== undefined) {
-      this.lineFill.segments.push(createCurvedSegment(this.x, this.y, controlX, controlY, endX, endY));
+      if (this.leftFill !== undefined) {
+        this.leftFill.segments.push(createCurvedSegment(this.x, this.y, controlX, controlY, endX, endY));
+      }
+      if (this.rightFill !== undefined) {
+        this.rightFill.segments.push(createCurvedSegment(endX, endY, controlX, controlY, this.x, this.y));
+      }
+      if (this.lineFill !== undefined) {
+        this.lineFill.segments.push(createCurvedSegment(this.x, this.y, controlX, controlY, endX, endY));
+      }
     }
 
     this.x = endX;
@@ -371,7 +376,10 @@ class SwfMorphShapeDecoder {
     return {paths};
   }
 
-  private setNewStyles(swfFillStyles: SwfMorphFillStyle[], swfLineStyles: SwfMorphLineStyle[]): void {
+  private setNewStyles(
+    swfFillStyles: SwfMorphFillStyle[],
+    swfLineStyles: SwfMorphLineStyle[],
+  ): void {
     const layer: StyleLayer = createStyleLayer(swfFillStyles, swfLineStyles);
     this.layers.push(layer);
     this.leftFill = undefined;

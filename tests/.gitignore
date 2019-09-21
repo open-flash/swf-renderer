@@ -5,3 +5,5 @@ ts-out.png
 *.ts-out.png
 *.ts-diff.png
 tmp-*
+local-*
+node_modules/

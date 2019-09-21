@@ -1,0 +1,9 @@
+{
+  "name": "@swf-renderer/capture",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "koa": "^2.7.0",
+    "raw-body": "^2.4.0"
+  }
+}

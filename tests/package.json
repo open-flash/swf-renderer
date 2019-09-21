@@ -1,0 +1,10 @@
+{
+  "name": "@swf-renderer/tests",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "kryo": "^0.8.1",
+    "swf-emitter": "^0.3.0",
+    "swf-tree": "^0.6.0"
+  }
+}

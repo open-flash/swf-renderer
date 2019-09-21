@@ -50,9 +50,10 @@
     "suppressExcessPropertyErrors": false,
     "suppressImplicitAnyIndexErrors": false,
     "target": "es2017",
-    "traceResolution": false
-  },
-  "files": [
-    "gulpfile.ts"
-  ]
+    "traceResolution": false,
+    "typeRoots": [
+      "src/custom-typings",
+      "node_modules/@types"
+    ]
+  }
 }

@@ -65,28 +65,28 @@
         "line_style": 1
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -300,
           "y": 127
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 0,
           "y": 4820
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -7660,
           "y": 3239
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 0,
           "y": 500
@@ -97,28 +97,28 @@
         "right_fill": 0
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 7960,
           "y": -3365
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 0,
           "y": -5321
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -6169,
           "y": -4169
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -7948,
           "y": 3364
@@ -129,21 +129,21 @@
         "right_fill": 1
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 238,
           "y": 172
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 7660,
           "y": -3239
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 5919,
           "y": 3999
@@ -157,7 +157,7 @@
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 0,
           "y": -4820
@@ -172,21 +172,21 @@
         "right_fill": 0
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -9,
           "y": 1320
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 9,
           "y": 4011
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 6157,
           "y": 4160
@@ -201,14 +201,14 @@
         "right_fill": 1
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -5919,
           "y": -3999
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 0,
           "y": -4820
@@ -259,14 +259,14 @@
         "line_style": 1
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 7660,
           "y": -3239
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 5919,
           "y": 3999

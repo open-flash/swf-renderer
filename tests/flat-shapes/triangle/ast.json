@@ -93,21 +93,21 @@
         "left_fill": 5
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": 10040,
           "y": 320
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -6540,
           "y": -6339
         }
       },
       {
-        "type": "straight-edge",
+        "type": "edge",
         "delta": {
           "x": -3500,
           "y": 6019

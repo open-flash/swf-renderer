@@ -24,11 +24,8 @@ export function decodeSwfShape(tag: tags.DefineShape): Shape {
 
   for (const record of tag.shape.records) {
     switch (record.type) {
-      case ShapeRecordType.CurvedEdge:
-        converter.applyCurvedEdge(record);
-        break;
-      case ShapeRecordType.StraightEdge:
-        converter.applyStraightEdge(record);
+      case ShapeRecordType.Edge:
+        converter.applyEdge(record);
         break;
       case ShapeRecordType.StyleChange:
         converter.applyStyleChange(record);
@@ -54,7 +51,12 @@ interface StraightSegment {
   endY: number;
 }
 
-function createStraightSegment(startX: number, startY: number, endX: number, endY: number): StraightSegment {
+function createStraightSegment(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+): StraightSegment {
   return {type: SegmentType.Straight, startX, startY, endX, endY};
 }
 
@@ -117,7 +119,11 @@ function decodeFillStyle(swfStyle: SwfFillStyle): FillStyle {
         focalPoint: swfStyle.focalPoint.valueOf(),
       };
     case SwfFillStyleType.LinearGradient:
-      return {type: FillStyleType.LinearGradient, matrix: swfStyle.matrix, gradient: decodeGradient(swfStyle.gradient)};
+      return {
+        type: FillStyleType.LinearGradient,
+        matrix: swfStyle.matrix,
+        gradient: decodeGradient(swfStyle.gradient),
+      };
     case SwfFillStyleType.RadialGradient:
       return {
         type: FillStyleType.FocalGradient,
@@ -168,7 +174,10 @@ interface LineSegmentSet {
 /**
  * Create a new layer with the supplied styles.
  */
-function createStyleLayer(swfFillStyles: SwfFillStyle[], swfLineStyles: SwfLineStyle[]): StyleLayer {
+function createStyleLayer(
+  swfFillStyles: SwfFillStyle[],
+  swfLineStyles: SwfLineStyle[],
+): StyleLayer {
   const fills: FillSegmentSet[] = [];
   for (const swfFillStyle of swfFillStyles) {
     fills.push({
@@ -344,38 +353,34 @@ class SwfShapeDecoder {
     }
   }
 
-  applyStraightEdge(record: shapeRecords.StraightEdge): void {
+  applyEdge(record: shapeRecords.Edge): void {
     const endX: number = this.x + record.delta.x;
     const endY: number = this.y + record.delta.y;
 
-    if (this.leftFill !== undefined) {
-      this.leftFill.segments.push(createStraightSegment(this.x, this.y, endX, endY));
-    }
-    if (this.rightFill !== undefined) {
-      this.rightFill.segments.push(createStraightSegment(endX, endY, this.x, this.y));
-    }
-    if (this.lineFill !== undefined) {
-      this.lineFill.segments.push(createStraightSegment(this.x, this.y, endX, endY));
-    }
-
-    this.x = endX;
-    this.y = endY;
-  }
-
-  applyCurvedEdge(record: shapeRecords.CurvedEdge): void {
-    const controlX: number = this.x + record.controlDelta.x;
-    const controlY: number = this.y + record.controlDelta.y;
-    const endX: number = controlX + record.anchorDelta.x;
-    const endY: number = controlY + record.anchorDelta.y;
-
-    if (this.leftFill !== undefined) {
-      this.leftFill.segments.push(createCurvedSegment(this.x, this.y, controlX, controlY, endX, endY));
-    }
-    if (this.rightFill !== undefined) {
-      this.rightFill.segments.push(createCurvedSegment(endX, endY, controlX, controlY, this.x, this.y));
-    }
-    if (this.lineFill !== undefined) {
-      this.lineFill.segments.push(createCurvedSegment(this.x, this.y, controlX, controlY, endX, endY));
+    if (record.controlDelta === undefined) {
+      // Straight edge
+      if (this.leftFill !== undefined) {
+        this.leftFill.segments.push(createStraightSegment(this.x, this.y, endX, endY));
+      }
+      if (this.rightFill !== undefined) {
+        this.rightFill.segments.push(createStraightSegment(endX, endY, this.x, this.y));
+      }
+      if (this.lineFill !== undefined) {
+        this.lineFill.segments.push(createStraightSegment(this.x, this.y, endX, endY));
+      }
+    } else {
+      // Curved edge
+      const controlX: number = this.x + record.controlDelta.x;
+      const controlY: number = this.y + record.controlDelta.y;
+      if (this.leftFill !== undefined) {
+        this.leftFill.segments.push(createCurvedSegment(this.x, this.y, controlX, controlY, endX, endY));
+      }
+      if (this.rightFill !== undefined) {
+        this.rightFill.segments.push(createCurvedSegment(endX, endY, controlX, controlY, this.x, this.y));
+      }
+      if (this.lineFill !== undefined) {
+        this.lineFill.segments.push(createCurvedSegment(this.x, this.y, controlX, controlY, endX, endY));
+      }
     }
 
     this.x = endX;
