@@ -1,7 +1,7 @@
 use std::collections::vec_deque::VecDeque;
 
 use swf_tree::{FillStyle, LineStyle, Shape as SwfShape, ShapeRecord, ShapeStyles, Vector2D};
-use swf_tree::shape_records::{CurvedEdge, StraightEdge, StyleChange};
+use swf_tree::shape_records::{Edge, StyleChange};
 
 #[derive(Debug, Clone)]
 pub struct Shape {
@@ -20,11 +20,8 @@ pub fn decode_shape(swf_shape: &SwfShape) -> Shape {
 
   for record in swf_shape.records.iter() {
     match record {
-      ShapeRecord::CurvedEdge(ref record) => {
-        decoder.apply_curved_edge(record);
-      }
-      ShapeRecord::StraightEdge(ref record) => {
-        decoder.apply_straight_edge(record);
+      ShapeRecord::Edge(ref record) => {
+        decoder.apply_edge(record);
       }
       ShapeRecord::StyleChange(ref record) => {
         decoder.apply_style_change(record);
@@ -102,16 +99,10 @@ impl ShapeDecoder {
     }
   }
 
-  pub fn apply_curved_edge(&mut self, record: &CurvedEdge) -> () {
-    let control = add_vec2(self.pos, record.control_delta);
-    let end = add_vec2(control, record.anchor_delta);
-    self.top_layer.add_segment(Segment::new(self.pos, end, Some(control)));
-    self.pos = end;
-  }
-
-  pub fn apply_straight_edge(&mut self, record: &StraightEdge) -> () {
+  pub fn apply_edge(&mut self, record: &Edge) -> () {
+    let control = record.control_delta.map(|cd| add_vec2(self.pos, cd));
     let end = add_vec2(self.pos, record.delta);
-    self.top_layer.add_segment(Segment::new(self.pos, end, None));
+    self.top_layer.add_segment(Segment::new(self.pos, end, control));
     self.pos = end;
   }
 

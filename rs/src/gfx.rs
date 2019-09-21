@@ -141,8 +141,8 @@ pub fn get_supported_depth_format<B: gfx_hal::Backend>(physical_device: &B::Phys
   use gfx_hal::adapter::PhysicalDevice;
 
   let depth_formats = [
-    gfx_hal::format::Format::D32FloatS8Uint,
-    gfx_hal::format::Format::D32Float,
+    gfx_hal::format::Format::D32SfloatS8Uint,
+    gfx_hal::format::Format::D32Sfloat,
     gfx_hal::format::Format::D24UnormS8Uint,
     gfx_hal::format::Format::D16UnormS8Uint,
     gfx_hal::format::Format::D16Unorm,

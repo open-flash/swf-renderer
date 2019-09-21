@@ -10,6 +10,7 @@ use nalgebra_glm as glm;
 
 use crate::gfx::{AttachedBuffer, AttachedImage, create_buffer, create_image, create_images, destroy_buffer, destroy_image, get_supported_depth_format, Vertex};
 use crate::renderer::{DisplayItem, GfxSymbol, Image, ImageMetadata, Renderer, ShapeStore};
+use std::borrow::Cow;
 
 const QUEUE_COUNT: usize = 1;
 const VERTEX_SHADER_SOURCE: &'static str = include_str!("shader.vert.glsl");
@@ -250,7 +251,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
             );
             copy_cmd.finish();
             let copy_fence = self.device.create_fence(false).expect("Failed to create fence");
-            cmd_queue.submit_nosemaphores(Some(&copy_cmd), Some(&copy_fence));
+            cmd_queue.submit_without_semaphores(Some(&copy_cmd), Some(&copy_fence));
             self.device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
             self.device.destroy_fence(copy_fence);
           }
@@ -302,7 +303,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
             );
             copy_cmd.finish();
             let copy_fence = self.device.create_fence(false).expect("Failed to create fence");
-            cmd_queue.submit_nosemaphores(Some(&copy_cmd), Some(&copy_fence));
+            cmd_queue.submit_without_semaphores(Some(&copy_cmd), Some(&copy_fence));
             self.device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
             self.device.destroy_fence(copy_fence);
           }
@@ -346,7 +347,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         .expect("Failed to create pipeline layout");
 
       let pipeline_cache = self.device
-        .create_pipeline_cache()
+        .create_pipeline_cache(Option::None)
         .expect("Failed to create pipeline cache");
 
 
@@ -371,12 +372,12 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         .expect("Failed to compile fragment shader");
       let vertex_shader_module = {
         self.device
-          .create_shader_module(vertex_compile_artifact.as_binary_u8())
+          .create_shader_module(vertex_compile_artifact.as_binary())
           .expect("Failed to create shader module")
       };
       let fragment_shader_module = {
         self.device
-          .create_shader_module(fragment_compile_artifact.as_binary_u8())
+          .create_shader_module(fragment_compile_artifact.as_binary())
           .expect("Failed to create fragment module")
       };
 
@@ -384,7 +385,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         vertex: gfx_hal::pso::EntryPoint {
           entry: "main",
           module: &vertex_shader_module,
-          specialization: gfx_hal::pso::Specialization { constants: &[], data: &[] },
+          specialization: gfx_hal::pso::Specialization { constants: Cow::Owned(Vec::new()), data: Cow::Owned(Vec::new()) },
         },
         hull: None,
         domain: None,
@@ -392,7 +393,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         fragment: Some(gfx_hal::pso::EntryPoint {
           entry: "main",
           module: &fragment_shader_module,
-          specialization: gfx_hal::pso::Specialization { constants: &[], data: &[] },
+          specialization: gfx_hal::pso::Specialization { constants: Cow::Owned(Vec::new()), data: Cow::Owned(Vec::new()) },
         }),
       };
 
@@ -408,27 +409,27 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       let vertex_buffers: Vec<gfx_hal::pso::VertexBufferDesc> = vec![gfx_hal::pso::VertexBufferDesc {
         binding: 0,
         stride: (::std::mem::size_of::<Vertex>()) as u32,
-        rate: 0,
+        rate: ::gfx_hal::pso::VertexInputRate::Vertex,
       }];
       let attributes: Vec<gfx_hal::pso::AttributeDesc> = vec![
         // position
         gfx_hal::pso::AttributeDesc {
           binding: 0,
           location: 0,
-          element: gfx_hal::pso::Element { format: gfx_hal::format::Format::Rgb32Float, offset: offset_of!(Vertex, position) as u32 },
+          element: gfx_hal::pso::Element { format: gfx_hal::format::Format::Rgb32Sfloat, offset: offset_of!(Vertex, position) as u32 },
         },
         // color
         gfx_hal::pso::AttributeDesc {
           binding: 0,
           location: 1,
-          element: gfx_hal::pso::Element { format: gfx_hal::format::Format::Rgb32Float, offset: offset_of!(Vertex, color) as u32 },
+          element: gfx_hal::pso::Element { format: gfx_hal::format::Format::Rgb32Sfloat, offset: offset_of!(Vertex, color) as u32 },
         },
       ];
 
       let input_assembler: gfx_hal::pso::InputAssemblerDesc = gfx_hal::pso::InputAssemblerDesc::new(gfx_hal::Primitive::TriangleList);
 
       let blender = {
-        let blend_state = gfx_hal::pso::BlendState::On {
+        let blend_state: Option<gfx_hal::pso::BlendState> = Some(gfx_hal::pso::BlendState {
           color: gfx_hal::pso::BlendOp::Add {
             src: gfx_hal::pso::Factor::One,
             dst: gfx_hal::pso::Factor::Zero,
@@ -437,17 +438,17 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
             src: gfx_hal::pso::Factor::One,
             dst: gfx_hal::pso::Factor::Zero,
           },
-        };
+        });
         gfx_hal::pso::BlendDesc {
           logic_op: Some(gfx_hal::pso::LogicOp::Copy),
-          targets: vec![gfx_hal::pso::ColorBlendDesc(gfx_hal::pso::ColorMask::ALL, blend_state)],
+          targets: vec![gfx_hal::pso::ColorBlendDesc {mask: gfx_hal::pso::ColorMask::ALL, blend: blend_state }],
         }
       };
 
       let depth_stencil = gfx_hal::pso::DepthStencilDesc {
-        depth: gfx_hal::pso::DepthTest::On { fun: gfx_hal::pso::Comparison::LessEqual, write: true },
+        depth: Some(gfx_hal::pso::DepthTest { fun: gfx_hal::pso::Comparison::LessEqual, write: true }),
         depth_bounds: false,
-        stencil: gfx_hal::pso::StencilTest::Off,
+        stencil: None,
       };
 
       let multisampling: Option<gfx_hal::pso::Multisampling> = None;
@@ -497,7 +498,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
       {
         let clear_values = [
-          gfx_hal::command::ClearValue::Color(gfx_hal::command::ClearColor::Float([0.0, 0.0, 0.0, 0.0])),
+          gfx_hal::command::ClearValue::Color(gfx_hal::command::ClearColor::Sfloat([0.0, 0.0, 0.0, 0.0])),
           gfx_hal::command::ClearValue::DepthStencil(gfx_hal::command::ClearDepthStencil(1.0, 0)),
         ];
         let mut encoder: gfx_hal::command::RenderPassInlineEncoder<_> = command_buffer.begin_render_pass_inline(
@@ -568,7 +569,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
       let cmd_queue = &mut self.queue_group.queues[0];
       let cmd_fence = self.device.create_fence(false).expect("Failed to create fence");
-      cmd_queue.submit_nosemaphores(Some(&command_buffer), Some(&cmd_fence));
+      cmd_queue.submit_without_semaphores(Some(&command_buffer), Some(&cmd_fence));
       self.device.wait_for_fence(&cmd_fence, core::u64::MAX).expect("Failed to wait for fence");
       self.device.destroy_fence(cmd_fence);
 
@@ -677,7 +678,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         copy_cmd.finish();
 
         let copy_fence = self.device.create_fence(false).expect("Failed to create fence");
-        cmd_queue.submit_nosemaphores(Some(&copy_cmd), Some(&copy_fence));
+        cmd_queue.submit_without_semaphores(Some(&copy_cmd), Some(&copy_fence));
         self.device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
         self.device.destroy_fence(copy_fence);
       }

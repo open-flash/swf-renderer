@@ -15,14 +15,14 @@ mod renderer_tests {
   use std::path::Path;
 
   use ::swf_tree::tags::DefineShape;
-  use ::test_generator::test_expand_paths;
+  use ::test_generator::test_resources;
 
   use crate::decode_shape;
   use crate::headless_renderer::HeadlessGfxRenderer;
   use crate::pam::write_pam;
   use crate::renderer::DisplayItem;
 
-  test_expand_paths! { test_decode_shape; "../tests/flat-shapes/*/" }
+  #[test_resources("../tests/flat-shapes/*/")]
   fn test_decode_shape(path: &str) {
     let path: &Path = Path::new(path);
     let _name = path.components().last().unwrap().as_os_str().to_str().expect("Failed to retrieve sample name");
@@ -57,7 +57,7 @@ mod renderer_tests {
     }
   }
 
-  test_expand_paths! { test_render_flat_shape; "../tests/flat-shapes/*/" }
+  #[test_resources("../tests/flat-shapes/*/")]
   fn test_render_flat_shape(path: &str) {
     use gfx_backend_vulkan as gfx_backend;
     use crate::renderer::Renderer;
