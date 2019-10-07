@@ -1,13 +1,6 @@
-import { StraightSRgba } from "semantic-types";
+import { FillStyle } from "./fill-style";
 
-export enum LineStyleType {
-  Solid,
-}
-
-export interface SolidLine {
-  readonly type: LineStyleType.Solid;
-  readonly color: Readonly<StraightSRgba<number>>;
+export interface LineStyle {
   readonly width: number;
+  readonly fill: FillStyle;
 }
-
-export type LineStyle = SolidLine;

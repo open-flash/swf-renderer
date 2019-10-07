@@ -14,9 +14,7 @@ import { Renderer } from "../renderer";
 import { decodeSwfMorphShape } from "../shape/decode-swf-morph-shape";
 import { decodeSwfShape } from "../shape/decode-swf-shape";
 import { FillStyleType } from "../shape/fill-style";
-import { LineStyleType } from "../shape/line-style";
 import { MorphFillStyleType } from "../shape/morph-fill-style";
-import { MorphLineStyleType } from "../shape/morph-line-style";
 import { MorphCommandType, MorphPath } from "../shape/morph-path";
 import { MorphShape as CompiledMorphShape } from "../shape/morph-shape";
 import { CommandType, Path } from "../shape/path";
@@ -252,10 +250,12 @@ export class CanvasRenderer implements Renderer {
     }
 
     if (path.line !== undefined) {
-      switch (path.line.type) {
-        case MorphLineStyleType.Solid:
+      switch (path.line.fill.type) {
+        case MorphFillStyleType.Solid:
           this.context.lineWidth = lerp(path.line.width[0], path.line.width[1], ratio);
-          this.context.strokeStyle = fromNormalizedColor(lerpRgba(path.line.startColor, path.line.endColor, ratio));
+          this.context.strokeStyle = fromNormalizedColor(
+            lerpRgba(path.line.fill.startColor, path.line.fill.endColor, ratio),
+          );
           break;
         default:
           throw new Incident("NotImplementedLineStyle", {style: path.line});
@@ -337,10 +337,10 @@ export class CanvasRenderer implements Renderer {
     }
 
     if (path.line !== undefined) {
-      switch (path.line.type) {
-        case LineStyleType.Solid:
+      switch (path.line.fill.type) {
+        case FillStyleType.Solid:
           this.context.lineWidth = path.line.width;
-          this.context.strokeStyle = fromNormalizedColor(path.line.color);
+          this.context.strokeStyle = fromNormalizedColor(path.line.fill.color);
           break;
         default:
           throw new Incident("NotImplementedLineStyle", {style: path.line});

@@ -1,14 +1,6 @@
-import { StraightSRgba } from "semantic-types";
+import { MorphFillStyle } from "./morph-fill-style";
 
-export enum MorphLineStyleType {
-  Solid,
-}
-
-export interface MorphSolidLine {
-  readonly type: MorphLineStyleType.Solid;
-  readonly startColor: Readonly<StraightSRgba<number>>;
-  readonly endColor: Readonly<StraightSRgba<number>>;
+export interface MorphLineStyle {
+  readonly fill: MorphFillStyle;
   readonly width: [number, number];
 }
-
-export type MorphLineStyle = MorphSolidLine;

@@ -11,7 +11,7 @@ import {
 import { MorphEdge, MorphStyleChange } from "swf-tree/shape-records";
 import { normalizeStraightSRgba } from "./decode-swf-shape";
 import { MorphFillStyle, MorphFillStyleType } from "./morph-fill-style";
-import { MorphLineStyle, MorphLineStyleType } from "./morph-line-style";
+import { MorphLineStyle } from "./morph-line-style";
 import { MorphCommand, MorphCommandType, MorphPath } from "./morph-path";
 import { MorphShape } from "./morph-shape";
 
@@ -109,12 +109,9 @@ function decodeFillStyle(old: SwfMorphFillStyle): MorphFillStyle {
  * Normalize the line style from the SWF format to the renderer format
  */
 function decodeLineStyle(swfStyle: SwfMorphLineStyle): MorphLineStyle {
-  // TODO...
   return {
-    type: MorphLineStyleType.Solid,
-    startColor: {r: 0, g: 0, b: 0, a: 1},
-    endColor: {r: 0, g: 0, b: 0, a: 1},
     width: [swfStyle.width, swfStyle.morphWidth],
+    fill: decodeFillStyle(swfStyle.fill),
   };
 }
 

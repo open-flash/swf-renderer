@@ -12,7 +12,7 @@ import {
 import { Gradient as SwfGradient } from "swf-tree/gradient";
 import { FillStyle, FillStyleType } from "./fill-style";
 import { ColorStop, Gradient } from "./gradient";
-import { LineStyle, LineStyleType } from "./line-style";
+import { LineStyle } from "./line-style";
 import { Command, CommandType, Path } from "./path";
 import { Shape } from "./shape";
 
@@ -142,8 +142,10 @@ function decodeFillStyle(swfStyle: SwfFillStyle): FillStyle {
  * Normalize the line style from the SWF format to the renderer format
  */
 function decodeLineStyle(swfStyle: SwfLineStyle): LineStyle {
-  // TODO...
-  return {type: LineStyleType.Solid, color: {r: 0, g: 0, b: 0, a: 1}, width: swfStyle.width};
+  return {
+    width: swfStyle.width,
+    fill: decodeFillStyle(swfStyle.fill),
+  };
 }
 
 /**
