@@ -159,7 +159,7 @@ pub fn get_supported_depth_format<B: gfx_hal::Backend>(physical_device: &B::Phys
 }
 
 pub fn get_memory_type_id(
-  memory_types: &[gfx_hal::MemoryType],
+  memory_types: &[gfx_hal::adapter::MemoryType],
   memory_properties: gfx_hal::memory::Properties,
   mem_type_mask: u64,
 ) -> gfx_hal::MemoryTypeId {

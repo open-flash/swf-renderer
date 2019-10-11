@@ -1,3 +1,4 @@
+#![feature(manually_drop_take)]
 pub use decoder::shape_decoder::{decode_shape, Shape, StyledPath};
 
 pub mod gfx;
@@ -78,7 +79,8 @@ mod renderer_tests {
     let ast_reader = ::std::io::BufReader::new(ast_file);
     let ast: swf_tree::tags::DefineShape = serde_json::from_reader(ast_reader).unwrap();
 
-    let instance: gfx_backend::Instance = gfx_backend::Instance::create(GFX_APP_NAME, GFX_BACKEND_VERSION);
+    let instance: gfx_backend::Instance = gfx_backend::Instance::create(GFX_APP_NAME, GFX_BACKEND_VERSION)
+      .expect("Failed to create Instance");
 
     let width_twips = ast.bounds.x_max - ast.bounds.x_min;
     let height_twips = ast.bounds.y_max - ast.bounds.y_min;

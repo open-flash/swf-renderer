@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 use std::mem::ManuallyDrop;
 
+use gfx_hal::command::CommandBuffer;
 use gfx_hal::adapter::PhysicalDevice;
 use gfx_hal::Backend as GfxBackend;
 use gfx_hal::device::Device;
 use gfx_hal::image::Extent;
+use gfx_hal::pool::CommandPool;
+use gfx_hal::queue::CommandQueue;
 use gfx_hal::queue::family::QueueFamily;
 use nalgebra_glm as glm;
 
@@ -24,8 +27,8 @@ pub struct HeadlessGfxRenderer<B: GfxBackend> {
   pub shape_meshes: HashMap<usize, ShapeMesh<B>>,
 
   pub device: B::Device,
-  pub queue_group: gfx_hal::queue::QueueGroup<B, gfx_hal::queue::capability::Graphics>,
-  pub command_pool: ManuallyDrop<gfx_hal::pool::CommandPool<B, gfx_hal::queue::capability::Graphics>>,
+  pub queue_group: gfx_hal::queue::QueueGroup<B>,
+  pub command_pool: ManuallyDrop<B::CommandPool>,
 
   pub memories: gfx_hal::adapter::MemoryProperties,
   pub color_format: gfx_hal::format::Format,
@@ -46,8 +49,12 @@ pub struct ShapeMesh<B: GfxBackend> {
   index_count: usize,
 }
 
+fn is_compatible_queue_familiy<B: GfxBackend>(qf: &B::QueueFamily) -> bool {
+  qf.queue_type().supports_graphics() && qf.max_queues() >= QUEUE_COUNT
+}
+
 impl<B: GfxBackend> HeadlessGfxRenderer<B> {
-  pub fn new<I: gfx_hal::Instance>(instance: &I, width: usize, height: usize) -> Result<HeadlessGfxRenderer<I::Backend>, &'static str>
+  pub fn new<I: gfx_hal::Instance<Backend=B>>(instance: &I, width: usize, height: usize) -> Result<HeadlessGfxRenderer<B>, &'static str>
   {
     let viewport_extent = Extent { width: width as u32, height: height as u32, depth: 1 };
 
@@ -57,14 +64,26 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       .find(|a| {
         a.queue_families
           .iter()
-          .any(|qf| qf.supports_graphics())
+          .any(is_compatible_queue_familiy::<B>)
       })
       .ok_or("Failed to find a compatible GPU adapter")?;
 
-    let (device, queue_group): (<I::Backend as GfxBackend>::Device, _) = adapter
-      .open_with::<_, gfx_hal::queue::capability::Graphics>(QUEUE_COUNT, |_qf| true)
-      .map_err(|_| "Failed to open GPU device")?;
+    let (device, queue_group): (B::Device, gfx_hal::queue::QueueGroup<B>) = {
+      let family: &B::QueueFamily = adapter
+        .queue_families
+        .iter()
+        .find(|qf| is_compatible_queue_familiy::<B>(qf))
+        .expect("Failed to find queue family with graphics support");
 
+      let mut gpu: gfx_hal::adapter::Gpu<B> = unsafe {
+        adapter
+          .physical_device
+          .open(&[(family, &[1.0])], gfx_hal::Features::empty())
+          .expect("Failed to open GPU")
+      };
+
+      (gpu.device, gpu.queue_groups.pop().unwrap())
+    };
 
     let memories = adapter.physical_device.memory_properties();
     let color_format = gfx_hal::format::Format::Rgba8Unorm;
@@ -73,13 +92,13 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
     let command_pool = unsafe {
       device
-        .create_command_pool_typed(&queue_group, gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL)
+        .create_command_pool(queue_group.family, gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL)
         .map_err(|_| "Failed to create command pool")?
     };
 
     // Create attachments
     let attachments = unsafe {
-      create_images::<I::Backend>(&device, viewport_extent, color_format, depth_format, &memories)
+      create_images::<B>(&device, viewport_extent, color_format, depth_format, &memories)
     };
 
     let ((color_image, color_image_view), (depth_image, depth_image_view)) = attachments.unwrap();
@@ -162,7 +181,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       framebuffer
     };
 
-    Ok(HeadlessGfxRenderer::<I::Backend> {
+    Ok(HeadlessGfxRenderer::<B> {
       viewport_extent,
       stage: None,
       shape_store: ShapeStore::new(),
@@ -222,13 +241,12 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
           };
 
           unsafe {
-            let mut staging_mapping: gfx_hal::mapping::Writer<B, Vertex> = self.device
-              .acquire_mapping_writer(&staging_buffer.memory, 0..staging_buffer.capacity)
-              .expect("Failed to acquire mapping writer");
-            staging_mapping[..symbol.mesh.vertices.len()].copy_from_slice(&symbol.mesh.vertices);
-            self.device
-              .release_mapping_writer(staging_mapping)
-              .expect("Failed to release mapping writer");
+            let mapping = self.device.map_memory(&staging_buffer.memory, 0..staging_buffer.capacity)
+              .expect("Failed to map staging memory (for mesh upload)");
+
+            std::ptr::copy_nonoverlapping(symbol.mesh.vertices.as_ptr(), mapping as *mut Vertex, symbol.mesh.vertices.len());
+
+            self.device.unmap_memory(&staging_buffer.memory);
           }
 
           let vertex_buffer = unsafe {
@@ -242,8 +260,8 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
           };
 
           unsafe {
-            let mut copy_cmd = self.command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
-            copy_cmd.begin();
+            let mut copy_cmd = self.command_pool.allocate_one(gfx_hal::command::Level::Primary);
+            copy_cmd.begin_primary(gfx_hal::command::CommandBufferFlags::ONE_TIME_SUBMIT);
             copy_cmd.copy_buffer(
               &staging_buffer.buffer,
               &vertex_buffer.buffer,
@@ -274,13 +292,12 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
           };
 
           unsafe {
-            let mut staging_mapping: gfx_hal::mapping::Writer<B, IndexType> = self.device
-              .acquire_mapping_writer(&staging_buffer.memory, 0..staging_buffer.capacity)
-              .expect("Failed to acquire mapping writer");
-            staging_mapping[..symbol.mesh.indices.len()].copy_from_slice(&symbol.mesh.indices);
-            self.device
-              .release_mapping_writer(staging_mapping)
-              .expect("Failed to release mapping writer");
+            let mapping = self.device.map_memory(&staging_buffer.memory, 0..staging_buffer.capacity)
+              .expect("Failed to map staging memory (for indices upload)");
+
+            std::ptr::copy_nonoverlapping(symbol.mesh.indices.as_ptr(), mapping as *mut u32, symbol.mesh.indices.len());
+
+            self.device.unmap_memory(&staging_buffer.memory);
           }
 
           let index_buffer = unsafe {
@@ -294,8 +311,8 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
           };
 
           unsafe {
-            let mut copy_cmd = self.command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
-            copy_cmd.begin();
+            let mut copy_cmd = self.command_pool.allocate_one(gfx_hal::command::Level::Primary);
+            copy_cmd.begin_primary(gfx_hal::command::CommandBufferFlags::ONE_TIME_SUBMIT);
             copy_cmd.copy_buffer(
               &staging_buffer.buffer,
               &index_buffer.buffer,
@@ -441,7 +458,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         });
         gfx_hal::pso::BlendDesc {
           logic_op: Some(gfx_hal::pso::LogicOp::Copy),
-          targets: vec![gfx_hal::pso::ColorBlendDesc {mask: gfx_hal::pso::ColorMask::ALL, blend: blend_state }],
+          targets: vec![gfx_hal::pso::ColorBlendDesc { mask: gfx_hal::pso::ColorMask::ALL, blend: blend_state }],
         }
       };
 
@@ -492,35 +509,37 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
     };
 
     unsafe {
-      let mut command_buffer = self.command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
-
-      command_buffer.begin();
+      let mut command_buffer: B::CommandBuffer = self.command_pool.allocate_one(gfx_hal::command::Level::Primary);
+      command_buffer.begin_primary(gfx_hal::command::CommandBufferFlags::ONE_TIME_SUBMIT);
 
       {
         let clear_values = [
-          gfx_hal::command::ClearValue::Color(gfx_hal::command::ClearColor::Sfloat([0.0, 0.0, 0.0, 0.0])),
-          gfx_hal::command::ClearValue::DepthStencil(gfx_hal::command::ClearDepthStencil(1.0, 0)),
+          gfx_hal::command::ClearValue { color: gfx_hal::command::ClearColor { float32: [0.0, 0.0, 0.0, 0.0] } },
+          gfx_hal::command::ClearValue { depth_stencil: gfx_hal::command::ClearDepthStencil { depth: 1.0, stencil: 0 } },
         ];
-        let mut encoder: gfx_hal::command::RenderPassInlineEncoder<_> = command_buffer.begin_render_pass_inline(
+
+        // Start of render pass
+        command_buffer.begin_render_pass(
           &self.render_pass,
           &self.framebuffer,
           self.viewport_extent.rect(),
           clear_values.iter(),
+          gfx_hal::command::SubpassContents::Inline,
         );
 
         let viewports = vec![gfx_hal::pso::Viewport { rect: self.viewport_extent.rect(), depth: (0.0..1.0) }];
-        encoder.set_viewports(0, viewports);
+        command_buffer.set_viewports(0, viewports);
 
         let scissors = vec![self.viewport_extent.rect()];
-        encoder.set_scissors(0, scissors);
+        command_buffer.set_scissors(0, scissors);
 
-        encoder.bind_graphics_pipeline(&pipeline);
+        command_buffer.bind_graphics_pipeline(&pipeline);
 
         let index_count: usize = {
           let mesh = self.get_shape_mesh(shape_id);
 
-          encoder.bind_vertex_buffers(0, vec![(&mesh.vertices.buffer, 0)]);
-          encoder.bind_index_buffer(gfx_hal::buffer::IndexBufferView {
+          command_buffer.bind_vertex_buffers(0, vec![(&mesh.vertices.buffer, 0)]);
+          command_buffer.bind_index_buffer(gfx_hal::buffer::IndexBufferView {
             buffer: &mesh.indices.buffer,
             offset: 0,
             index_type: gfx_hal::IndexType::U32,
@@ -554,14 +573,15 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
         let mvp_matrix_bits: Vec<u32> = (eye_matrix * world_matrix).data.iter().map(|x| x.to_bits()).collect();
 
-        encoder.push_graphics_constants(
+        command_buffer.push_graphics_constants(
           &pipeline_layout,
           gfx_hal::pso::ShaderStageFlags::VERTEX,
           0,
           &mvp_matrix_bits[..],
         );
 
-        encoder.draw_indexed(0..(index_count as u32), 0, 0..1);
+        command_buffer.draw_indexed(0..(index_count as u32), 0, 0..1);
+        // End of render pass
 //        }
       }
 
@@ -607,8 +627,8 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
     let image = unsafe {
       {
-        let mut copy_cmd = self.command_pool.acquire_command_buffer::<gfx_hal::command::OneShot>();
-        copy_cmd.begin();
+        let mut copy_cmd = self.command_pool.allocate_one(gfx_hal::command::Level::Primary);
+        copy_cmd.begin_primary(gfx_hal::command::CommandBufferFlags::ONE_TIME_SUBMIT);
 
         {
           let src_state: gfx_hal::image::State = (gfx_hal::image::Access::empty(), gfx_hal::image::Layout::Undefined);
@@ -699,14 +719,14 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       };
 
       let data = {
-        let mapping: gfx_hal::mapping::Reader<B, u8> = self.device
-          .acquire_mapping_reader(&gfx_image.memory, image_footprint.slice)
-          .expect("Failed to acquire mapping reader");
+        let count = ((image_footprint.slice.end - image_footprint.slice.start) as usize) / std::mem::size_of::<u8>();
+        let mapping = self.device.map_memory(&gfx_image.memory, image_footprint.slice)
+          .expect("Failed to map image memory (for read)");
+        let data = std::slice::from_raw_parts::<u8>(mapping as *const u8, count);
 
-        let data: Vec<u8> = Vec::from(&*mapping);
+        let data: Vec<u8> = Vec::from(data);
 
-        self.device
-          .release_mapping_reader(mapping);
+        self.device.unmap_memory(&gfx_image.memory);
 
         data
       };
@@ -744,7 +764,7 @@ impl<B: GfxBackend> Drop for HeadlessGfxRenderer<B> {
 
       self
         .device
-        .destroy_command_pool(ManuallyDrop::into_inner(read(&self.command_pool)).into_raw());
+        .destroy_command_pool(ManuallyDrop::take(&mut self.command_pool));
     }
   }
 }

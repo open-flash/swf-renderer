@@ -23,8 +23,8 @@ path = "src/main.rs"
 lyon = "^0.14.1"
 shaderc = { version = "^0.6.1", features = ["build-from-source"] }
 swf-tree = "^0.8.0"
-gfx-hal = "^0.3.1"
-gfx-backend-vulkan = "^0.3.3"
+gfx-hal = {git = "https://github.com/gfx-rs/gfx.git", rev="8c8c3cd0da39fc64aeac6fb1bb5d5864bb33d2df"}
+gfx-backend-vulkan = {git = "https://github.com/gfx-rs/gfx.git", rev="8c8c3cd0da39fc64aeac6fb1bb5d5864bb33d2df"}
 env_logger = "^0.6.2"
 nalgebra-glm = "^0.4.2"
 
