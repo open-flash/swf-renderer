@@ -1,13 +1,57 @@
 #![feature(manually_drop_take)]
-pub use decoder::shape_decoder::{decode_shape, Shape, StyledPath};
+#![allow(dead_code)]
+// pub use decoder::shape_decoder::{decode_shape, Shape, StyledPath};
+// use gfx_hal::adapter::{Adapter, PhysicalDevice};
+// use gfx_hal::command::CommandBuffer;
+// use gfx_hal::device::Device;
+// use gfx_hal::pool::CommandPool;
+// use gfx_hal::pso::DescriptorPool;
+// use gfx_hal::queue::{CommandQueue, QueueFamily};
+// use gfx_hal::window::{Surface, Swapchain};
+// use gfx_hal::Instance;
+// use gfx_hal::Backend;
+#[cfg(target_arch = "wasm32")]
+use crate::web_renderer::WebRenderer;
+#[cfg(target_arch = "wasm32")]
+use crate::swf_renderer::{Stage, SwfRenderer};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
+use gfx_backend_gl as back;
+#[cfg(target_arch = "wasm32")]
+use swf_tree::StraightSRgba8;
 
-pub mod gfx;
-pub mod pam;
-pub mod headless_renderer;
-pub mod renderer;
+mod gfx;
+pub mod swf_renderer;
+mod web_renderer;
 
-pub(crate) mod decoder {
-  pub(crate) mod shape_decoder;
+// pub mod pam;
+// pub mod headless_renderer;
+// pub mod renderer;
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(start)]
+pub fn wasm_start() {
+  std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+  console_log::init_with_level(log::Level::Debug).unwrap();
+
+  log::info!("Start");
+  let window = back::Window;
+  let surface = back::Surface::from_window(&window);
+  let adapter = WebRenderer::get_adapter(&surface)
+    .expect("Failed to find a GPU adapter supporting graphics");
+  let mut renderer: WebRenderer<back::Backend> = WebRenderer::new(adapter, surface);
+  log::info!("Created renderer");
+  let stage: Stage = Stage {
+    background_color: StraightSRgba8 {
+      r: 255,
+      g: 0,
+      b: 0,
+      a: 255,
+    }
+  };
+  renderer.render(stage);
+  log::info!("End");
 }
 
 #[cfg(test)]

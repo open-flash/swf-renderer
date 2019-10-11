@@ -1,23 +1,17 @@
+#![allow(dead_code)]
 #![macro_use]
 
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct Vertex {
-  pub position: [f32; 3],
-  pub color: [f32; 3],
-}
-
 /// Returns the offset of the field `field` in the struct `ty`
-macro_rules! offset_of {
-  ($ty:ty, $field:ident) => {
-    {
-      // TODO: Replace `let` with `const`
-      #[allow(unused_unsafe)]
-      let offset: usize = unsafe { &(*(0 as *const $ty)).$field as *const _ as usize };
-      offset
-    }
-  }
-}
+//macro_rules! offset_of {
+//  ($ty:ty, $field:ident) => {
+//    {
+//      // TODO: Replace `let` with `const`
+//      #[allow(unused_unsafe)]
+//      let offset: usize = unsafe { &(*(0 as *const $ty)).$field as *const _ as usize };
+//      offset
+//    }
+//  }
+//}
 
 pub struct AttachedBuffer<B: gfx_hal::Backend> {
   /// Buffer attached to memory
