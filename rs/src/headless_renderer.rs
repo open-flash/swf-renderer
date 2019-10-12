@@ -11,9 +11,10 @@ use gfx_hal::queue::CommandQueue;
 use gfx_hal::queue::family::QueueFamily;
 use nalgebra_glm as glm;
 
-use crate::gfx::{AttachedBuffer, AttachedImage, create_buffer, create_image, create_images, destroy_buffer, destroy_image, get_supported_depth_format, Vertex};
+use crate::gfx::{AttachedBuffer, AttachedImage, create_buffer, create_image, create_images, destroy_buffer, destroy_image, get_supported_depth_format};
 use crate::renderer::{DisplayItem, GfxSymbol, Image, ImageMetadata, Renderer, ShapeStore};
 use std::borrow::Cow;
+use crate::swf_renderer::Vertex;
 
 const QUEUE_COUNT: usize = 1;
 const VERTEX_SHADER_SOURCE: &'static str = include_str!("shader.vert.glsl");

@@ -4,7 +4,7 @@ use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVerte
 use swf_tree::FillStyle;
 
 use crate::{decode_shape};
-use crate::gfx::Vertex;
+use crate::swf_renderer::Vertex;
 
 /// Structure holding all the shape and morph-shape definitions in a
 /// format optimized for the renderer.

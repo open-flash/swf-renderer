@@ -1,11 +1,5 @@
+#![allow(dead_code)]
 #![macro_use]
-
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct Vertex {
-  pub position: [f32; 3],
-  pub color: [f32; 3],
-}
 
 /// Returns the offset of the field `field` in the struct `ty`
 macro_rules! offset_of {
