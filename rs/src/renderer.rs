@@ -86,7 +86,8 @@ pub trait Renderer {
   fn set_stage(&mut self, shape: DisplayItem) -> ();
 }
 
-/// Image metadata, format is always standard RGB with alpha (8 bits per channel).
+/// Image metadata
+/// the format is always standard RGB with alpha (8 bits per channel).
 pub struct ImageMetadata {
   /// Width in pixels
   pub width: usize,

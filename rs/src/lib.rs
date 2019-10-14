@@ -12,6 +12,9 @@ use swf_tree::StraightSRgba8;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
+pub mod asset;
+pub mod stage;
+
 mod gfx;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod headless_renderer;

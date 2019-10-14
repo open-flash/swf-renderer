@@ -1,12 +1,8 @@
 use swf_tree;
+use crate::stage::Stage;
 
 pub trait SwfRenderer {
   fn render(&mut self, stage: Stage) -> ();
-}
-
-#[derive(Debug, Clone)]
-pub struct Stage {
-  pub background_color: swf_tree::StraightSRgba8,
 }
 
 #[derive(Debug, Clone, Copy)]

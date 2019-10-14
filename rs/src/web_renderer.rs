@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::swf_renderer::{Stage, SwfRenderer};
+use crate::swf_renderer::SwfRenderer;
 use gfx_hal::adapter::{Adapter, Gpu, PhysicalDevice};
 use gfx_hal::command::CommandBuffer;
 use gfx_hal::device::Device;
@@ -22,6 +22,7 @@ use gfx_hal::Instance;
 use log::{debug, info, warn};
 use std::borrow::Borrow;
 use std::mem::ManuallyDrop;
+use crate::stage::Stage;
 
 const QUEUE_COUNT: usize = 1;
 const DEFAULT_EXTENT2D: Extent2D = Extent2D {

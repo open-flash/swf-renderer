@@ -1,6 +1,6 @@
 use ::gfx_backend_vulkan as back;
 use gfx_hal::Instance;
-use swf_renderer::swf_renderer::Stage;
+use swf_renderer::stage::Stage;
 use swf_renderer::SwfRenderer;
 use swf_renderer::WebRenderer;
 use swf_tree::StraightSRgba8;
@@ -25,7 +25,7 @@ fn main() {
     // Return `window` so it is not dropped: dropping it invalidates `surface`.
     (window, adapter, surface)
   };
-  let mut renderer = WebRenderer::new(adapter, surface);
+  let mut renderer: WebRenderer<back::Backend> = WebRenderer::new(adapter, surface);
 
   event_loop.run(move |event, _, control_flow| {
     *control_flow = winit::event_loop::ControlFlow::Wait;
@@ -50,10 +50,11 @@ fn main() {
         let stage: Stage = Stage {
           background_color: StraightSRgba8 {
             r: 255,
-            g: 0,
+            g: 255,
             b: 0,
             a: 255,
           },
+          display_root: Vec::new(),
         };
         renderer.render(stage);
       }
