@@ -1,4 +1,3 @@
-use swf_tree;
 use crate::stage::Stage;
 
 pub trait SwfRenderer {

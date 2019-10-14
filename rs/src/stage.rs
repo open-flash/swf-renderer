@@ -19,6 +19,12 @@ pub struct Stage {
 #[derive(Debug, Clone)]
 pub struct Matrix2D(pub [f32; 6]);
 
+impl ::std::default::Default for Matrix2D {
+  fn default() -> Self {
+    Self([1.0, 1.0, 0.0, 0.0, 0.0, 0.0])
+  }
+}
+
 /// Represents the interpolation ratio of a morph shape.
 ///
 /// A value of `0` indicates that the shape is in its start state.

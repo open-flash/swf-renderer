@@ -23,6 +23,8 @@ use log::{debug, info, warn};
 use std::borrow::Borrow;
 use std::mem::ManuallyDrop;
 use crate::stage::Stage;
+use crate::asset::{ClientAssetStore, ShapeId, MorphShapeId};
+use swf_tree::tags::{DefineShape, DefineMorphShape};
 
 const QUEUE_COUNT: usize = 1;
 const DEFAULT_EXTENT2D: Extent2D = Extent2D {
@@ -276,7 +278,7 @@ impl<B: Backend> WebRenderer<B> {
       let cmd_queue: &mut B::CommandQueue = &mut self.queue_group.queues[0];
       let cmd_fence = self.device.create_fence(false).expect("Failed to create fence");
       cmd_queue.submit_without_semaphores(Some(&command_buffer), Some(&cmd_fence));
-      cmd_queue.present_surface(&mut self.surface, surface_image, None);
+      cmd_queue.present_surface(&mut self.surface, surface_image, None).unwrap();
       self
         .device
         .wait_for_fence(&cmd_fence, core::u64::MAX)
@@ -297,6 +299,16 @@ impl<B: Backend> SwfRenderer for WebRenderer<B> {
     info!("Set stage: {:?}", &stage);
     self.stage = Some(stage);
     self.draw();
+  }
+}
+
+impl<B: Backend> ClientAssetStore for WebRenderer<B> {
+  fn register_shape(&mut self, _tag: &DefineShape) -> ShapeId {
+    ShapeId(0)
+  }
+
+  fn register_morph_shape(&mut self, _tag: &DefineMorphShape) -> MorphShapeId {
+    MorphShapeId(0)
   }
 }
 
