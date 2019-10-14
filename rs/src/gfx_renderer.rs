@@ -5,6 +5,7 @@ use crate::stage::Stage;
 use crate::swf_renderer::SwfRenderer;
 use gfx_hal::adapter::{Adapter, Gpu, PhysicalDevice};
 use gfx_hal::command::CommandBuffer;
+use gfx_hal::command;
 use gfx_hal::device::Device;
 use gfx_hal::format::{ChannelType, Format};
 use gfx_hal::image::Access as ImageAccess;
@@ -15,7 +16,7 @@ use gfx_hal::pool::CommandPool;
 use gfx_hal::pso;
 use gfx_hal::pso::{PipelineStage, Rect, Viewport};
 use gfx_hal::queue::family::QueueFamily;
-use gfx_hal::queue::{CommandQueue, QueueGroup};
+use gfx_hal::queue::{CommandQueue, QueueGroup, Submission};
 use gfx_hal::window::PresentationSurface;
 use gfx_hal::window::{Extent2D, PresentMode, SurfaceCapabilities, SwapImageIndex};
 use gfx_hal::window::{Surface, SwapchainConfig};
@@ -25,6 +26,8 @@ use log::{debug, info, warn};
 use std::borrow::Borrow;
 use std::mem::ManuallyDrop;
 use swf_tree::tags::{DefineMorphShape, DefineShape};
+use std::convert::TryFrom;
+use core::iter;
 
 const QUEUE_COUNT: usize = 1;
 const DEFAULT_EXTENT: Extent2D = Extent2D {
@@ -33,14 +36,22 @@ const DEFAULT_EXTENT: Extent2D = Extent2D {
 };
 const DEFAULT_COLOR_FORMAT: Format = Format::Rgba8Srgb;
 
+struct FrameState<B: Backend> {
+  submission_complete_semaphore: B::Semaphore,
+  submission_complete_fence: B::Fence,
+  command_pool: B::CommandPool,
+  // Primary command buffer
+  command_buffer: B::CommandBuffer,
+}
+
 pub struct GfxRenderer<B: Backend> {
   pub stage: Option<Stage>,
 
   pub device: B::Device,
   pub queue_group: QueueGroup<B>,
-  pub command_pool: ManuallyDrop<B::CommandPool>,
   pub surface: B::Surface,
   swapchain: SwapchainState,
+  frames: Vec<FrameState<B>>,
 
   pub memories: gfx_hal::adapter::MemoryProperties,
 
@@ -70,23 +81,14 @@ struct SwapchainState {
   frames_in_flight: SwapImageIndex,
 }
 
-/// If the swapchain is not created, create it. Otherwise reset it.
+/// Create or recreate the swapchain attached to the provided surface.
 unsafe fn create_swapchain<B: Backend>(
   device: &B::Device,
   physical_device: &B::PhysicalDevice,
   surface: &mut B::Surface,
 ) -> SwapchainState {
-  let (caps, formats, supported_present_modes): (SurfaceCapabilities, Option<Vec<Format>>, Vec<PresentMode>) =
+  let (caps, formats, _supported_present_modes): (SurfaceCapabilities, Option<Vec<Format>>, Vec<PresentMode>) =
     surface.compatibility(physical_device);
-
-  let present_mode: PresentMode = {
-    const PREFERRED_MODES: [PresentMode; 2] = [PresentMode::Mailbox, PresentMode::Fifo];
-    PREFERRED_MODES
-      .iter()
-      .cloned()
-      .find(|pm| supported_present_modes.contains(pm))
-      .expect("Failed to negotiate present mode")
-  };
 
   let format = formats.map_or(DEFAULT_COLOR_FORMAT, |formats| {
     formats
@@ -98,18 +100,17 @@ unsafe fn create_swapchain<B: Backend>(
 
   let extent: Extent2D = caps.current_extent.unwrap_or(DEFAULT_EXTENT);
 
-  let mut swapchain_config = SwapchainConfig::from_caps(&caps, format, extent);
-  swapchain_config.present_mode = present_mode;
-  debug!("{:?}", swapchain_config);
+  let config = SwapchainConfig::from_caps(&caps, format, extent);
+  debug!("{:?}", config);
 
-  let preferred_frames_in_flight: SwapImageIndex = if present_mode == PresentMode::Mailbox { 3 } else { 2 };
+  let preferred_frames_in_flight: SwapImageIndex = if config.present_mode == PresentMode::Mailbox { 3 } else { 2 };
   let frames_in_flight = SwapImageIndex::min(
     *caps.image_count.end(),
     SwapImageIndex::max(*caps.image_count.start(), preferred_frames_in_flight),
   );
 
   surface
-    .configure_swapchain(&device, swapchain_config)
+    .configure_swapchain(&device, config)
     .expect("Failed to configure swapchain");
 
   SwapchainState {
@@ -148,40 +149,25 @@ impl<B: Backend> GfxRenderer<B> {
     let mut queue_groups: Vec<QueueGroup<B>> = gpu.queue_groups;
     let queue_group: QueueGroup<B> = queue_groups.pop().unwrap();
 
-    let command_pool = unsafe {
-      device
-        .create_command_pool(
-          queue_group.family,
-          gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL,
-        )
-        .expect("Failed to create command pool")
-    };
-
-    //    let set_layout = unsafe {
-    //      device
-    //        .create_descriptor_set_layout(
-    //          &[
-    //            pso::DescriptorSetLayoutBinding {
-    //              binding: 0,
-    //              ty: pso::DescriptorType::SampledImage,
-    //              count: 1,
-    //              stage_flags: ShaderStageFlags::FRAGMENT,
-    //              immutable_samplers: false,
-    //            },
-    //            pso::DescriptorSetLayoutBinding {
-    //              binding: 1,
-    //              ty: pso::DescriptorType::Sampler,
-    //              count: 1,
-    //              stage_flags: ShaderStageFlags::FRAGMENT,
-    //              immutable_samplers: false,
-    //            },
-    //          ],
-    //          &[],
-    //        )
-    //        .expect("Can't create descriptor set layout")
-    //    };
-
     let swapchain: SwapchainState = unsafe { create_swapchain::<B>(&device, &adapter.physical_device, &mut surface) };
+
+    let mut frames: Vec<FrameState<B>> = Vec::with_capacity(usize::try_from(swapchain.frames_in_flight).unwrap());
+    for _ in 0..swapchain.frames_in_flight {
+      let submission_complete_semaphore: B::Semaphore = device.create_semaphore().expect("Failed to create semaphore");
+      let submission_complete_fence: B::Fence = device.create_fence(true).expect("Failed to create fence");
+      let mut command_pool: B::CommandPool = unsafe {
+        device
+          .create_command_pool(queue_group.family, gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL)
+          .expect("Failed to create command pool")
+      };
+      let command_buffer: B::CommandBuffer = command_pool.allocate_one(command::Level::Primary);
+      frames.push(FrameState {
+        submission_complete_semaphore,
+        submission_complete_fence,
+        command_pool,
+        command_buffer,
+      });
+    }
 
     let render_pass: B::RenderPass = unsafe {
       let attachment: pass::Attachment = pass::Attachment {
@@ -221,7 +207,7 @@ impl<B: Backend> GfxRenderer<B> {
       stage: None,
       device,
       queue_group,
-      command_pool: ManuallyDrop::new(command_pool),
+      frames,
       surface,
       swapchain,
       memories,
@@ -229,8 +215,6 @@ impl<B: Backend> GfxRenderer<B> {
       frame: 0,
     }
   }
-
-  fn refresh_swapchain(&mut self) {}
 
   fn draw(&mut self) -> () {
     let stage: &Stage = match &self.stage {
@@ -242,7 +226,7 @@ impl<B: Backend> GfxRenderer<B> {
     };
 
     let surface_image = unsafe {
-      match self.surface.acquire_image(std::u64::MAX) {
+      match self.surface.acquire_image(core::u64::MAX) {
         Ok((image, _)) => image,
         Err(_) => {
           warn!("Failed to acquire image");
@@ -258,7 +242,7 @@ impl<B: Backend> GfxRenderer<B> {
         .device
         .create_framebuffer(
           &self.render_pass,
-          std::iter::once(surface_image.borrow()),
+          iter::once(surface_image.borrow()),
           self.swapchain.extent.to_extent(),
         )
         .expect("Failed to create framebuffer");
@@ -266,11 +250,19 @@ impl<B: Backend> GfxRenderer<B> {
       framebuffer
     };
 
-    unsafe {
-      let mut command_buffer: B::CommandBuffer = self.command_pool.allocate_one(gfx_hal::command::Level::Primary);
-      command_buffer.begin_primary(gfx_hal::command::CommandBufferFlags::ONE_TIME_SUBMIT);
+    // Compute index into frame resource ring buffer.
+    // TODO Refactor conversion
+    let frame_resource_idx: SwapImageIndex = SwapImageIndex::try_from(self.frame).unwrap() % self.swapchain.frames_in_flight;
+    let frame: &mut FrameState<B> = &mut self.frames[usize::try_from(frame_resource_idx).unwrap()];
 
-      command_buffer.set_viewports(
+    unsafe {
+      self.device.wait_for_fence(&frame.submission_complete_fence, core::u64::MAX).expect("Failed to wait for fence");
+      self.device.reset_fence(&frame.submission_complete_fence).expect("Failed to reset fence");
+      frame.command_pool.reset(false);
+
+      frame.command_buffer.begin_primary(gfx_hal::command::CommandBufferFlags::ONE_TIME_SUBMIT);
+
+      frame.command_buffer.set_viewports(
         0,
         &[Viewport {
           rect: Rect {
@@ -294,9 +286,8 @@ impl<B: Backend> GfxRenderer<B> {
         gfx_hal::command::ClearValue {
           color: gfx_hal::command::ClearColor { float32: color_f32 },
         },
-        //        gfx_hal::command::ClearValue { depth_stencil: gfx_hal::command::ClearDepthStencil { depth: 1.0, stencil: 0 } },
       ];
-      command_buffer.begin_render_pass(
+      frame.command_buffer.begin_render_pass(
         &self.render_pass,
         &framebuffer,
         self.swapchain.extent.to_extent().rect(),
@@ -304,26 +295,30 @@ impl<B: Backend> GfxRenderer<B> {
         gfx_hal::command::SubpassContents::Inline,
       );
 
-      command_buffer.finish();
+      frame.command_buffer.finish();
 
       let cmd_queue: &mut B::CommandQueue = &mut self.queue_group.queues[0];
-      let cmd_fence = self.device.create_fence(false).expect("Failed to create fence");
-      cmd_queue.submit_without_semaphores(Some(&command_buffer), Some(&cmd_fence));
+      let submission = Submission {
+        command_buffers: iter::once(&frame.command_buffer),
+        wait_semaphores: None,
+        signal_semaphores: iter::once(&frame.submission_complete_semaphore),
+      };
+      cmd_queue.submit(
+        submission,
+        Some(&frame.submission_complete_fence),
+      );
       cmd_queue
-        .present_surface(&mut self.surface, surface_image, None)
+        .present_surface(&mut self.surface, surface_image, Some(&frame.submission_complete_semaphore))
         .unwrap();
       self
         .device
-        .wait_for_fence(&cmd_fence, core::u64::MAX)
+        .wait_for_fence(&frame.submission_complete_fence, core::u64::MAX)
         .expect("Failed to wait for fence");
-      self.device.destroy_fence(cmd_fence);
     }
 
     unsafe {
       self.device.destroy_framebuffer(framebuffer);
     }
-
-    warn!("NotImplemented: Draw");
   }
 }
 
@@ -362,11 +357,13 @@ impl<B: Backend> Drop for GfxRenderer<B> {
       //      self.device.destroy_image_view(ManuallyDrop::into_inner(read(&self.color_image_view)));
       //      destroy_image(&self.device, ManuallyDrop::into_inner(read(&self.color_image)));
 
-      self.surface.unconfigure_swapchain(&self.device);
+      for frame in self.frames.drain(..) {
+        self.device.destroy_command_pool(frame.command_pool);
+        self.device.destroy_fence(frame.submission_complete_fence);
+        self.device.destroy_semaphore(frame.submission_complete_semaphore);
+      }
 
-      self
-        .device
-        .destroy_command_pool(ManuallyDrop::take(&mut self.command_pool));
+      self.surface.unconfigure_swapchain(&self.device);
     }
   }
 }
