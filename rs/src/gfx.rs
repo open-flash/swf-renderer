@@ -4,13 +4,11 @@
 /// Returns the offset of the field `field` in the struct `ty`
 macro_rules! offset_of {
   ($ty:ty, $field:ident) => {
-    {
-      // TODO: Replace `let` with `const`
-      #[allow(unused_unsafe)]
-      let offset: usize = unsafe { &(*(0 as *const $ty)).$field as *const _ as usize };
-      offset
-    }
-  }
+    // TODO: Replace `let` with `const`
+    #[allow(unused_unsafe)]
+    let offset: usize = unsafe { &(*(0 as *const $ty)).$field as *const _ as usize };
+    offset
+  };
 }
 
 pub struct AttachedBuffer<B: gfx_hal::Backend> {
@@ -37,26 +35,28 @@ pub unsafe fn create_buffer<B: gfx_hal::Backend>(
     .create_buffer(size, usage)
     .map_err(|_| "Failed to create buffer")?;
 
-  let requirements: gfx_hal::memory::Requirements = device
-    .get_buffer_requirements(&buffer);
+  let requirements: gfx_hal::memory::Requirements = device.get_buffer_requirements(&buffer);
 
-  let mem_type: gfx_hal::MemoryTypeId = get_memory_type_id(&memories.memory_types, memory_properties, requirements.type_mask);
+  let mem_type: gfx_hal::MemoryTypeId =
+    get_memory_type_id(&memories.memory_types, memory_properties, requirements.type_mask);
 
   match device.allocate_memory(mem_type, requirements.size) {
     Err(_) => {
       device.destroy_buffer(buffer);
       Err("Failed to allocate buffer memory")
     }
-    Ok(memory) => {
-      match device.bind_buffer_memory(&memory, 0, &mut buffer) {
-        Err(_) => {
-          device.free_memory(memory);
-          device.destroy_buffer(buffer);
-          Err("Failed to bind buffer to memory")
-        }
-        Ok(_) => Ok(AttachedBuffer { buffer, memory, capacity: requirements.size }),
+    Ok(memory) => match device.bind_buffer_memory(&memory, 0, &mut buffer) {
+      Err(_) => {
+        device.free_memory(memory);
+        device.destroy_buffer(buffer);
+        Err("Failed to bind buffer to memory")
       }
-    }
+      Ok(_) => Ok(AttachedBuffer {
+        buffer,
+        memory,
+        capacity: requirements.size,
+      }),
+    },
   }
 }
 
@@ -89,38 +89,26 @@ pub unsafe fn create_image<B: gfx_hal::Backend>(
   use gfx_hal::device::Device;
 
   let mut image = device
-    .create_image(
-      kind,
-      mip_levels,
-      format,
-      tiling,
-      usage,
-      view_caps,
-    )
+    .create_image(kind, mip_levels, format, tiling, usage, view_caps)
     .map_err(|_| "Failed to create image")?;
 
   let image_requirements = device.get_image_requirements(&image);
-  let image_memory_type_id = get_memory_type_id(
-    &memories.memory_types,
-    memory_properties,
-    image_requirements.type_mask,
-  );
+  let image_memory_type_id =
+    get_memory_type_id(&memories.memory_types, memory_properties, image_requirements.type_mask);
 
   match device.allocate_memory(image_memory_type_id, image_requirements.size) {
     Err(_) => {
       device.destroy_image(image);
       Err("Failed to allocate image memory")
     }
-    Ok(memory) => {
-      match device.bind_image_memory(&memory, 0, &mut image) {
-        Err(_) => {
-          device.free_memory(memory);
-          device.destroy_image(image);
-          Err("Failed to bind image to memory")
-        }
-        Ok(_) => Ok(AttachedImage { image, memory }),
+    Ok(memory) => match device.bind_image_memory(&memory, 0, &mut image) {
+      Err(_) => {
+        device.free_memory(memory);
+        device.destroy_image(image);
+        Err("Failed to bind image to memory")
       }
-    }
+      Ok(_) => Ok(AttachedImage { image, memory }),
+    },
   }
 }
 
@@ -131,7 +119,9 @@ pub unsafe fn destroy_image<B: gfx_hal::Backend>(device: &B::Device, image: Atta
   device.destroy_image(image.image);
 }
 
-pub fn get_supported_depth_format<B: gfx_hal::Backend>(physical_device: &B::PhysicalDevice) -> Option<gfx_hal::format::Format> {
+pub fn get_supported_depth_format<B: gfx_hal::Backend>(
+  physical_device: &B::PhysicalDevice,
+) -> Option<gfx_hal::format::Format> {
   use gfx_hal::adapter::PhysicalDevice;
 
   let depth_formats = [
@@ -144,7 +134,10 @@ pub fn get_supported_depth_format<B: gfx_hal::Backend>(physical_device: &B::Phys
 
   for format in depth_formats.into_iter() {
     let format_properties = physical_device.format_properties(Some(*format));
-    if format_properties.optimal_tiling.contains(gfx_hal::format::ImageFeature::DEPTH_STENCIL_ATTACHMENT) {
+    if format_properties
+      .optimal_tiling
+      .contains(gfx_hal::format::ImageFeature::DEPTH_STENCIL_ATTACHMENT)
+    {
       return Some(*format);
     }
   }
@@ -189,20 +182,20 @@ pub unsafe fn create_images<B: gfx_hal::Backend>(
     gfx_hal::image::ViewCapabilities::empty(),
     gfx_hal::memory::Properties::DEVICE_LOCAL,
     memories,
-  ).map_err(|_| "Failed to create color image")?;
+  )
+  .map_err(|_| "Failed to create color image")?;
 
-  let color_image_view = device
-    .create_image_view(
-      &color_image.image,
-      gfx_hal::image::ViewKind::D2,
-      color_format,
-      gfx_hal::format::Swizzle::NO,
-      gfx_hal::image::SubresourceRange {
-        aspects: gfx_hal::format::Aspects::COLOR,
-        layers: std::ops::Range { start: 0, end: 1 },
-        levels: std::ops::Range { start: 0, end: 1 },
-      },
-    );
+  let color_image_view = device.create_image_view(
+    &color_image.image,
+    gfx_hal::image::ViewKind::D2,
+    color_format,
+    gfx_hal::format::Swizzle::NO,
+    gfx_hal::image::SubresourceRange {
+      aspects: gfx_hal::format::Aspects::COLOR,
+      layers: std::ops::Range { start: 0, end: 1 },
+      levels: std::ops::Range { start: 0, end: 1 },
+    },
+  );
 
   match color_image_view {
     Err(_) => {
@@ -229,18 +222,17 @@ pub unsafe fn create_images<B: gfx_hal::Backend>(
           Err("Failed to create depth image")
         }
         Ok(depth_image) => {
-          let depth_image_view = device
-            .create_image_view(
-              &depth_image.image,
-              gfx_hal::image::ViewKind::D2,
-              depth_format,
-              gfx_hal::format::Swizzle::NO,
-              gfx_hal::image::SubresourceRange {
-                aspects: gfx_hal::format::Aspects::DEPTH | gfx_hal::format::Aspects::STENCIL,
-                layers: std::ops::Range { start: 0, end: 1 },
-                levels: std::ops::Range { start: 0, end: 1 },
-              },
-            );
+          let depth_image_view = device.create_image_view(
+            &depth_image.image,
+            gfx_hal::image::ViewKind::D2,
+            depth_format,
+            gfx_hal::format::Swizzle::NO,
+            gfx_hal::image::SubresourceRange {
+              aspects: gfx_hal::format::Aspects::DEPTH | gfx_hal::format::Aspects::STENCIL,
+              layers: std::ops::Range { start: 0, end: 1 },
+              levels: std::ops::Range { start: 0, end: 1 },
+            },
+          );
 
           match depth_image_view {
             Err(_) => {
@@ -251,7 +243,7 @@ pub unsafe fn create_images<B: gfx_hal::Backend>(
             }
             Ok(depth_image_view) => Ok(((color_image, color_image_view), (depth_image, depth_image_view))),
           }
-        },
+        }
       }
     }
   }

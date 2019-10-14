@@ -1,0 +1,6 @@
+# Usage
+# ```
+# cargo fmt --all
+# ```
+max_width = 120
+tab_spaces = 2

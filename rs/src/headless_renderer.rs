@@ -1,25 +1,27 @@
 use std::collections::HashMap;
 use std::mem::ManuallyDrop;
 
-use gfx_hal::command::CommandBuffer;
 use gfx_hal::adapter::PhysicalDevice;
-use gfx_hal::Backend as GfxBackend;
+use gfx_hal::command::CommandBuffer;
 use gfx_hal::device::Device;
 use gfx_hal::image::Extent;
 use gfx_hal::pool::CommandPool;
-use gfx_hal::queue::CommandQueue;
 use gfx_hal::queue::family::QueueFamily;
+use gfx_hal::queue::CommandQueue;
+use gfx_hal::Backend as GfxBackend;
 use nalgebra_glm as glm;
 
-use crate::gfx::{AttachedBuffer, AttachedImage, create_buffer, create_image, create_images, destroy_buffer, destroy_image, get_supported_depth_format};
+use crate::gfx::{
+  create_buffer, create_image, create_images, destroy_buffer, destroy_image, get_supported_depth_format,
+  AttachedBuffer, AttachedImage,
+};
 use crate::renderer::{DisplayItem, GfxSymbol, Image, ImageMetadata, Renderer, ShapeStore};
-use std::borrow::Cow;
 use crate::swf_renderer::Vertex;
+use std::borrow::Cow;
 
 const QUEUE_COUNT: usize = 1;
 const VERTEX_SHADER_SOURCE: &'static str = include_str!("shader.vert.glsl");
 const FRAGMENT_SHADER_SOURCE: &'static str = include_str!("shader.frag.glsl");
-
 
 pub struct HeadlessGfxRenderer<B: GfxBackend> {
   pub viewport_extent: Extent,
@@ -55,18 +57,21 @@ fn is_compatible_queue_familiy<B: GfxBackend>(qf: &B::QueueFamily) -> bool {
 }
 
 impl<B: GfxBackend> HeadlessGfxRenderer<B> {
-  pub fn new<I: gfx_hal::Instance<Backend=B>>(instance: &I, width: usize, height: usize) -> Result<HeadlessGfxRenderer<B>, &'static str>
-  {
-    let viewport_extent = Extent { width: width as u32, height: height as u32, depth: 1 };
+  pub fn new<I: gfx_hal::Instance<Backend = B>>(
+    instance: &I,
+    width: usize,
+    height: usize,
+  ) -> Result<HeadlessGfxRenderer<B>, &'static str> {
+    let viewport_extent = Extent {
+      width: width as u32,
+      height: height as u32,
+      depth: 1,
+    };
 
     let adapter = instance
       .enumerate_adapters()
       .into_iter()
-      .find(|a| {
-        a.queue_families
-          .iter()
-          .any(is_compatible_queue_familiy::<B>)
-      })
+      .find(|a| a.queue_families.iter().any(is_compatible_queue_familiy::<B>))
       .ok_or("Failed to find a compatible GPU adapter")?;
 
     let (device, queue_group): (B::Device, gfx_hal::queue::QueueGroup<B>) = {
@@ -93,14 +98,15 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
     let command_pool = unsafe {
       device
-        .create_command_pool(queue_group.family, gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL)
+        .create_command_pool(
+          queue_group.family,
+          gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL,
+        )
         .map_err(|_| "Failed to create command pool")?
     };
 
     // Create attachments
-    let attachments = unsafe {
-      create_images::<B>(&device, viewport_extent, color_format, depth_format, &memories)
-    };
+    let attachments = unsafe { create_images::<B>(&device, viewport_extent, color_format, depth_format, &memories) };
 
     let ((color_image, color_image_view), (depth_image, depth_image_view)) = attachments.unwrap();
 
@@ -116,7 +122,10 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
           load: gfx_hal::pass::AttachmentLoadOp::DontCare,
           store: gfx_hal::pass::AttachmentStoreOp::DontCare,
         },
-        layouts: std::ops::Range { start: gfx_hal::image::Layout::Undefined, end: gfx_hal::image::Layout::TransferSrcOptimal },
+        layouts: std::ops::Range {
+          start: gfx_hal::image::Layout::Undefined,
+          end: gfx_hal::image::Layout::TransferSrcOptimal,
+        },
       };
       let depth_attachment: gfx_hal::pass::Attachment = gfx_hal::pass::Attachment {
         format: Some(depth_format),
@@ -129,7 +138,10 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
           load: gfx_hal::pass::AttachmentLoadOp::DontCare,
           store: gfx_hal::pass::AttachmentStoreOp::DontCare,
         },
-        layouts: std::ops::Range { start: gfx_hal::image::Layout::Undefined, end: gfx_hal::image::Layout::DepthStencilAttachmentOptimal },
+        layouts: std::ops::Range {
+          start: gfx_hal::image::Layout::Undefined,
+          end: gfx_hal::image::Layout::DepthStencilAttachmentOptimal,
+        },
       };
       let attachments = [color_attachment, depth_attachment];
 
@@ -146,23 +158,37 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
       let dependencies = [
         gfx_hal::pass::SubpassDependency {
-          passes: std::ops::Range { start: gfx_hal::pass::SubpassRef::External, end: gfx_hal::pass::SubpassRef::Pass(0) },
-          stages: std::ops::Range { start: gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE, end: gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT },
-          accesses: std::ops::Range { start: gfx_hal::image::Access::MEMORY_READ, end: gfx_hal::image::Access::COLOR_ATTACHMENT_READ | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE },
+          passes: std::ops::Range {
+            start: gfx_hal::pass::SubpassRef::External,
+            end: gfx_hal::pass::SubpassRef::Pass(0),
+          },
+          stages: std::ops::Range {
+            start: gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE,
+            end: gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT,
+          },
+          accesses: std::ops::Range {
+            start: gfx_hal::image::Access::MEMORY_READ,
+            end: gfx_hal::image::Access::COLOR_ATTACHMENT_READ | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE,
+          },
         },
         gfx_hal::pass::SubpassDependency {
-          passes: std::ops::Range { start: gfx_hal::pass::SubpassRef::Pass(0), end: gfx_hal::pass::SubpassRef::External },
-          stages: std::ops::Range { start: gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT, end: gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE },
-          accesses: std::ops::Range { start: gfx_hal::image::Access::COLOR_ATTACHMENT_READ | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE, end: gfx_hal::image::Access::MEMORY_READ },
+          passes: std::ops::Range {
+            start: gfx_hal::pass::SubpassRef::Pass(0),
+            end: gfx_hal::pass::SubpassRef::External,
+          },
+          stages: std::ops::Range {
+            start: gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT,
+            end: gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE,
+          },
+          accesses: std::ops::Range {
+            start: gfx_hal::image::Access::COLOR_ATTACHMENT_READ | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE,
+            end: gfx_hal::image::Access::MEMORY_READ,
+          },
         },
       ];
 
       let render_pass = device
-        .create_render_pass(
-          &attachments,
-          &[subpass_desc],
-          &dependencies,
-        )
+        .create_render_pass(&attachments, &[subpass_desc], &dependencies)
         .expect("Failed to create render pass");
 
       render_pass
@@ -172,11 +198,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       let image_views = vec![&color_image_view, &depth_image_view];
 
       let framebuffer = device
-        .create_framebuffer(
-          &render_pass,
-          image_views.into_iter(),
-          viewport_extent,
-        )
+        .create_framebuffer(&render_pass, image_views.into_iter(), viewport_extent)
         .expect("Failed to create frame buffer");
 
       framebuffer
@@ -238,14 +260,21 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
               gfx_hal::memory::Properties::CPU_VISIBLE | gfx_hal::memory::Properties::COHERENT,
               vertex_buffer_size as u64,
               &self.memories,
-            ).unwrap()
+            )
+            .unwrap()
           };
 
           unsafe {
-            let mapping = self.device.map_memory(&staging_buffer.memory, 0..staging_buffer.capacity)
+            let mapping = self
+              .device
+              .map_memory(&staging_buffer.memory, 0..staging_buffer.capacity)
               .expect("Failed to map staging memory (for mesh upload)");
 
-            std::ptr::copy_nonoverlapping(symbol.mesh.vertices.as_ptr(), mapping as *mut Vertex, symbol.mesh.vertices.len());
+            std::ptr::copy_nonoverlapping(
+              symbol.mesh.vertices.as_ptr(),
+              mapping as *mut Vertex,
+              symbol.mesh.vertices.len(),
+            );
 
             self.device.unmap_memory(&staging_buffer.memory);
           }
@@ -257,7 +286,8 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
               gfx_hal::memory::Properties::DEVICE_LOCAL,
               vertex_buffer_size as u64,
               &self.memories,
-            ).unwrap()
+            )
+            .unwrap()
           };
 
           unsafe {
@@ -266,20 +296,28 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
             copy_cmd.copy_buffer(
               &staging_buffer.buffer,
               &vertex_buffer.buffer,
-              &[gfx_hal::command::BufferCopy { src: 0, dst: 0, size: vertex_buffer_size as u64 }],
+              &[gfx_hal::command::BufferCopy {
+                src: 0,
+                dst: 0,
+                size: vertex_buffer_size as u64,
+              }],
             );
             copy_cmd.finish();
             let copy_fence = self.device.create_fence(false).expect("Failed to create fence");
             cmd_queue.submit_without_semaphores(Some(&copy_cmd), Some(&copy_fence));
-            self.device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
+            self
+              .device
+              .wait_for_fence(&copy_fence, core::u64::MAX)
+              .expect("Failed to wait for fence");
             self.device.destroy_fence(copy_fence);
           }
 
-          unsafe { destroy_buffer(&self.device, staging_buffer); }
+          unsafe {
+            destroy_buffer(&self.device, staging_buffer);
+          }
 
           vertex_buffer
         };
-
 
         let indices = {
           let staging_buffer = unsafe {
@@ -289,14 +327,21 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
               gfx_hal::memory::Properties::CPU_VISIBLE | gfx_hal::memory::Properties::COHERENT,
               index_buffer_size as u64,
               &self.memories,
-            ).unwrap()
+            )
+            .unwrap()
           };
 
           unsafe {
-            let mapping = self.device.map_memory(&staging_buffer.memory, 0..staging_buffer.capacity)
+            let mapping = self
+              .device
+              .map_memory(&staging_buffer.memory, 0..staging_buffer.capacity)
               .expect("Failed to map staging memory (for indices upload)");
 
-            std::ptr::copy_nonoverlapping(symbol.mesh.indices.as_ptr(), mapping as *mut u32, symbol.mesh.indices.len());
+            std::ptr::copy_nonoverlapping(
+              symbol.mesh.indices.as_ptr(),
+              mapping as *mut u32,
+              symbol.mesh.indices.len(),
+            );
 
             self.device.unmap_memory(&staging_buffer.memory);
           }
@@ -308,7 +353,8 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
               gfx_hal::memory::Properties::DEVICE_LOCAL,
               index_buffer_size as u64,
               &self.memories,
-            ).unwrap()
+            )
+            .unwrap()
           };
 
           unsafe {
@@ -317,16 +363,25 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
             copy_cmd.copy_buffer(
               &staging_buffer.buffer,
               &index_buffer.buffer,
-              &[gfx_hal::command::BufferCopy { src: 0, dst: 0, size: index_buffer_size as u64 }],
+              &[gfx_hal::command::BufferCopy {
+                src: 0,
+                dst: 0,
+                size: index_buffer_size as u64,
+              }],
             );
             copy_cmd.finish();
             let copy_fence = self.device.create_fence(false).expect("Failed to create fence");
             cmd_queue.submit_without_semaphores(Some(&copy_cmd), Some(&copy_fence));
-            self.device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
+            self
+              .device
+              .wait_for_fence(&copy_fence, core::u64::MAX)
+              .expect("Failed to wait for fence");
             self.device.destroy_fence(copy_fence);
           }
 
-          unsafe { destroy_buffer(&self.device, staging_buffer); }
+          unsafe {
+            destroy_buffer(&self.device, staging_buffer);
+          }
 
           index_buffer
         };
@@ -347,27 +402,34 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       DisplayItem::Shape(ref id, ref matrix) => (*id, matrix),
     };
 
-    let (vertex_shader_module, fragment_shader_module, descriptor_set_layout, pipeline_layout, pipeline_cache, pipeline) = unsafe {
-      let descriptor_set_layout = self.device
+    let (
+      vertex_shader_module,
+      fragment_shader_module,
+      descriptor_set_layout,
+      pipeline_layout,
+      pipeline_cache,
+      pipeline,
+    ) = unsafe {
+      let descriptor_set_layout = self
+        .device
         .create_descriptor_set_layout(&[], &[])
         .expect("Failed to create descriptor set layout");
 
       let constant_size: usize = ::std::mem::size_of::<glm::TMat4<f32>>();
-      let push_constants: Vec<(gfx_hal::pso::ShaderStageFlags, core::ops::Range<u32>)> = vec![
-        (gfx_hal::pso::ShaderStageFlags::VERTEX, 0..((constant_size / ::std::mem::size_of::<f32>()) as u32)),
-      ];
+      let push_constants: Vec<(gfx_hal::pso::ShaderStageFlags, core::ops::Range<u32>)> = vec![(
+        gfx_hal::pso::ShaderStageFlags::VERTEX,
+        0..((constant_size / ::std::mem::size_of::<f32>()) as u32),
+      )];
 
-      let pipeline_layout = self.device
-        .create_pipeline_layout(
-          &[],
-          push_constants,
-        )
+      let pipeline_layout = self
+        .device
+        .create_pipeline_layout(&[], push_constants)
         .expect("Failed to create pipeline layout");
 
-      let pipeline_cache = self.device
+      let pipeline_cache = self
+        .device
         .create_pipeline_cache(Option::None)
         .expect("Failed to create pipeline cache");
-
 
       let mut shader_compiler: shaderc::Compiler = shaderc::Compiler::new().expect("Failed to create shader");
       let vertex_compile_artifact: shaderc::CompilationArtifact = shader_compiler
@@ -389,12 +451,14 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         )
         .expect("Failed to compile fragment shader");
       let vertex_shader_module = {
-        self.device
+        self
+          .device
           .create_shader_module(vertex_compile_artifact.as_binary())
           .expect("Failed to create shader module")
       };
       let fragment_shader_module = {
-        self.device
+        self
+          .device
           .create_shader_module(fragment_compile_artifact.as_binary())
           .expect("Failed to create fragment module")
       };
@@ -403,7 +467,10 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         vertex: gfx_hal::pso::EntryPoint {
           entry: "main",
           module: &vertex_shader_module,
-          specialization: gfx_hal::pso::Specialization { constants: Cow::Owned(Vec::new()), data: Cow::Owned(Vec::new()) },
+          specialization: gfx_hal::pso::Specialization {
+            constants: Cow::Owned(Vec::new()),
+            data: Cow::Owned(Vec::new()),
+          },
         },
         hull: None,
         domain: None,
@@ -411,7 +478,10 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         fragment: Some(gfx_hal::pso::EntryPoint {
           entry: "main",
           module: &fragment_shader_module,
-          specialization: gfx_hal::pso::Specialization { constants: Cow::Owned(Vec::new()), data: Cow::Owned(Vec::new()) },
+          specialization: gfx_hal::pso::Specialization {
+            constants: Cow::Owned(Vec::new()),
+            data: Cow::Owned(Vec::new()),
+          },
         }),
       };
 
@@ -434,17 +504,24 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         gfx_hal::pso::AttributeDesc {
           binding: 0,
           location: 0,
-          element: gfx_hal::pso::Element { format: gfx_hal::format::Format::Rgb32Sfloat, offset: offset_of!(Vertex, position) as u32 },
+          element: gfx_hal::pso::Element {
+            format: gfx_hal::format::Format::Rgb32Sfloat,
+            offset: offset_of!(Vertex, position) as u32,
+          },
         },
         // color
         gfx_hal::pso::AttributeDesc {
           binding: 0,
           location: 1,
-          element: gfx_hal::pso::Element { format: gfx_hal::format::Format::Rgb32Sfloat, offset: offset_of!(Vertex, color) as u32 },
+          element: gfx_hal::pso::Element {
+            format: gfx_hal::format::Format::Rgb32Sfloat,
+            offset: offset_of!(Vertex, color) as u32,
+          },
         },
       ];
 
-      let input_assembler: gfx_hal::pso::InputAssemblerDesc = gfx_hal::pso::InputAssemblerDesc::new(gfx_hal::Primitive::TriangleList);
+      let input_assembler: gfx_hal::pso::InputAssemblerDesc =
+        gfx_hal::pso::InputAssemblerDesc::new(gfx_hal::Primitive::TriangleList);
 
       let blender = {
         let blend_state: Option<gfx_hal::pso::BlendState> = Some(gfx_hal::pso::BlendState {
@@ -459,12 +536,18 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         });
         gfx_hal::pso::BlendDesc {
           logic_op: Some(gfx_hal::pso::LogicOp::Copy),
-          targets: vec![gfx_hal::pso::ColorBlendDesc { mask: gfx_hal::pso::ColorMask::ALL, blend: blend_state }],
+          targets: vec![gfx_hal::pso::ColorBlendDesc {
+            mask: gfx_hal::pso::ColorMask::ALL,
+            blend: blend_state,
+          }],
         }
       };
 
       let depth_stencil = gfx_hal::pso::DepthStencilDesc {
-        depth: Some(gfx_hal::pso::DepthTest { fun: gfx_hal::pso::Comparison::LessEqual, write: true }),
+        depth: Some(gfx_hal::pso::DepthTest {
+          fun: gfx_hal::pso::Comparison::LessEqual,
+          write: true,
+        }),
         depth_bounds: false,
         stencil: None,
       };
@@ -502,11 +585,19 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         parent: gfx_hal::pso::BasePipeline::None,
       };
 
-      let pipeline = self.device
+      let pipeline = self
+        .device
         .create_graphics_pipeline(&pipeline_desc, Some(&pipeline_cache))
         .expect("Failed to create pipeline");
 
-      (vertex_shader_module, fragment_shader_module, descriptor_set_layout, pipeline_layout, pipeline_cache, pipeline)
+      (
+        vertex_shader_module,
+        fragment_shader_module,
+        descriptor_set_layout,
+        pipeline_layout,
+        pipeline_cache,
+        pipeline,
+      )
     };
 
     unsafe {
@@ -515,8 +606,14 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
       {
         let clear_values = [
-          gfx_hal::command::ClearValue { color: gfx_hal::command::ClearColor { float32: [0.0, 0.0, 0.0, 0.0] } },
-          gfx_hal::command::ClearValue { depth_stencil: gfx_hal::command::ClearDepthStencil { depth: 1.0, stencil: 0 } },
+          gfx_hal::command::ClearValue {
+            color: gfx_hal::command::ClearColor {
+              float32: [0.0, 0.0, 0.0, 0.0],
+            },
+          },
+          gfx_hal::command::ClearValue {
+            depth_stencil: gfx_hal::command::ClearDepthStencil { depth: 1.0, stencil: 0 },
+          },
         ];
 
         // Start of render pass
@@ -528,7 +625,10 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
           gfx_hal::command::SubpassContents::Inline,
         );
 
-        let viewports = vec![gfx_hal::pso::Viewport { rect: self.viewport_extent.rect(), depth: (0.0..1.0) }];
+        let viewports = vec![gfx_hal::pso::Viewport {
+          rect: self.viewport_extent.rect(),
+          depth: (0.0..1.0),
+        }];
         command_buffer.set_viewports(0, viewports);
 
         let scissors = vec![self.viewport_extent.rect()];
@@ -549,11 +649,11 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
           mesh.index_count
         };
 
-//        let pos = vec![
-//          glm::vec3(0.0f32, 0.0f32, 0.0f32),
-//        ];
+        //        let pos = vec![
+        //          glm::vec3(0.0f32, 0.0f32, 0.0f32),
+        //        ];
 
-//        for v in pos {
+        //        for v in pos {
         let eye_matrix = glm::ortho(
           0f32,
           (self.viewport_extent.width * 20) as f32,
@@ -563,14 +663,24 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
           10f32,
         );
 
-        let world_matrix = glm::make_mat4x4(
-          &[
-            f64::from(matrix.scale_x) as f32, f64::from(matrix.rotate_skew0) as f32, 0.0, 0.0,
-            f64::from(matrix.rotate_skew1) as f32, f64::from(matrix.scale_y) as f32, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            matrix.translate_x as f32, matrix.translate_y as f32, 0.0, 1.0,
-          ]
-        );
+        let world_matrix = glm::make_mat4x4(&[
+          f64::from(matrix.scale_x) as f32,
+          f64::from(matrix.rotate_skew0) as f32,
+          0.0,
+          0.0,
+          f64::from(matrix.rotate_skew1) as f32,
+          f64::from(matrix.scale_y) as f32,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          matrix.translate_x as f32,
+          matrix.translate_y as f32,
+          0.0,
+          1.0,
+        ]);
 
         let mvp_matrix_bits: Vec<u32> = (eye_matrix * world_matrix).data.iter().map(|x| x.to_bits()).collect();
 
@@ -583,7 +693,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
         command_buffer.draw_indexed(0..(index_count as u32), 0, 0..1);
         // End of render pass
-//        }
+        //        }
       }
 
       command_buffer.finish();
@@ -591,12 +701,13 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       let cmd_queue = &mut self.queue_group.queues[0];
       let cmd_fence = self.device.create_fence(false).expect("Failed to create fence");
       cmd_queue.submit_without_semaphores(Some(&command_buffer), Some(&cmd_fence));
-      self.device.wait_for_fence(&cmd_fence, core::u64::MAX).expect("Failed to wait for fence");
+      self
+        .device
+        .wait_for_fence(&cmd_fence, core::u64::MAX)
+        .expect("Failed to wait for fence");
       self.device.destroy_fence(cmd_fence);
 
-      self.device
-        .wait_idle()
-        .expect("Failed to wait for device to be idle");
+      self.device.wait_idle().expect("Failed to wait for device to be idle");
     }
 
     unsafe {
@@ -623,7 +734,8 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         gfx_hal::image::ViewCapabilities::empty(),
         gfx_hal::memory::Properties::CPU_VISIBLE | gfx_hal::memory::Properties::COHERENT,
         &self.memories,
-      ).unwrap()
+      )
+      .unwrap()
     };
 
     let image = unsafe {
@@ -633,7 +745,10 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
         {
           let src_state: gfx_hal::image::State = (gfx_hal::image::Access::empty(), gfx_hal::image::Layout::Undefined);
-          let dst_state: gfx_hal::image::State = (gfx_hal::image::Access::TRANSFER_WRITE, gfx_hal::image::Layout::TransferDstOptimal);
+          let dst_state: gfx_hal::image::State = (
+            gfx_hal::image::Access::TRANSFER_WRITE,
+            gfx_hal::image::Layout::TransferDstOptimal,
+          );
           let barrier: gfx_hal::memory::Barrier<B> = gfx_hal::memory::Barrier::Image {
             states: (src_state..dst_state),
             target: &gfx_image.image,
@@ -677,7 +792,10 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
         }
 
         {
-          let src_state: gfx_hal::image::State = (gfx_hal::image::Access::TRANSFER_WRITE, gfx_hal::image::Layout::TransferDstOptimal);
+          let src_state: gfx_hal::image::State = (
+            gfx_hal::image::Access::TRANSFER_WRITE,
+            gfx_hal::image::Layout::TransferDstOptimal,
+          );
           let dst_state: gfx_hal::image::State = (gfx_hal::image::Access::MEMORY_READ, gfx_hal::image::Layout::General);
           let barrier: gfx_hal::memory::Barrier<B> = gfx_hal::memory::Barrier::Image {
             states: (src_state..dst_state),
@@ -700,7 +818,10 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
         let copy_fence = self.device.create_fence(false).expect("Failed to create fence");
         cmd_queue.submit_without_semaphores(Some(&copy_cmd), Some(&copy_fence));
-        self.device.wait_for_fence(&copy_fence, core::u64::MAX).expect("Failed to wait for fence");
+        self
+          .device
+          .wait_for_fence(&copy_fence, core::u64::MAX)
+          .expect("Failed to wait for fence");
         self.device.destroy_fence(copy_fence);
       }
 
@@ -721,7 +842,9 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
       let data = {
         let count = ((image_footprint.slice.end - image_footprint.slice.start) as usize) / std::mem::size_of::<u8>();
-        let mapping = self.device.map_memory(&gfx_image.memory, image_footprint.slice)
+        let mapping = self
+          .device
+          .map_memory(&gfx_image.memory, image_footprint.slice)
           .expect("Failed to map image memory (for read)");
         let data = std::slice::from_raw_parts::<u8>(mapping as *const u8, count);
 
@@ -735,7 +858,9 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       Image { meta, data }
     };
 
-    unsafe { destroy_image(&self.device, gfx_image); }
+    unsafe {
+      destroy_image(&self.device, gfx_image);
+    }
 
     image
   }
@@ -746,21 +871,27 @@ impl<B: GfxBackend> Drop for HeadlessGfxRenderer<B> {
     unsafe {
       use core::ptr::read;
 
-      self.device
-        .wait_idle()
-        .expect("Failed to wait for device to be idle");
+      self.device.wait_idle().expect("Failed to wait for device to be idle");
 
       for (_, mesh) in self.shape_meshes.drain() {
         destroy_buffer(&self.device, ManuallyDrop::into_inner(mesh.indices));
         destroy_buffer(&self.device, ManuallyDrop::into_inner(mesh.vertices));
       }
 
-      self.device.destroy_framebuffer(ManuallyDrop::into_inner(read(&self.framebuffer)));
-      self.device.destroy_render_pass(ManuallyDrop::into_inner(read(&self.render_pass)));
+      self
+        .device
+        .destroy_framebuffer(ManuallyDrop::into_inner(read(&self.framebuffer)));
+      self
+        .device
+        .destroy_render_pass(ManuallyDrop::into_inner(read(&self.render_pass)));
 
-      self.device.destroy_image_view(ManuallyDrop::into_inner(read(&self.depth_image_view)));
+      self
+        .device
+        .destroy_image_view(ManuallyDrop::into_inner(read(&self.depth_image_view)));
       destroy_image(&self.device, ManuallyDrop::into_inner(read(&self.depth_image)));
-      self.device.destroy_image_view(ManuallyDrop::into_inner(read(&self.color_image_view)));
+      self
+        .device
+        .destroy_image_view(ManuallyDrop::into_inner(read(&self.color_image_view)));
       destroy_image(&self.device, ManuallyDrop::into_inner(read(&self.color_image)));
 
       self
@@ -776,14 +907,13 @@ impl<B: GfxBackend> Renderer for HeadlessGfxRenderer<B> {
     self.stage = Some(display_list);
   }
 
-
-//  let mut tessellator = FillTessellator::new();
-//
-//  let mut mesh: VertexBuffers<GpuFillVertex, u16> = VertexBuffers::new();
-//
-//  tessellator.tessellate_path(
-//  &path,
-//  &FillOptions::tolerance(0.01),
-//  &mut BuffersBuilder::new(&mut mesh, VertexCtor),
-//  ).unwrap();
+  //  let mut tessellator = FillTessellator::new();
+  //
+  //  let mut mesh: VertexBuffers<GpuFillVertex, u16> = VertexBuffers::new();
+  //
+  //  tessellator.tessellate_path(
+  //  &path,
+  //  &FillOptions::tolerance(0.01),
+  //  &mut BuffersBuilder::new(&mut mesh, VertexCtor),
+  //  ).unwrap();
 }

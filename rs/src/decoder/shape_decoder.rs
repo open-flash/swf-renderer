@@ -1,7 +1,7 @@
 use std::collections::vec_deque::VecDeque;
 
-use swf_tree::{FillStyle, LineStyle, Shape as SwfShape, ShapeRecord, ShapeStyles, Vector2D};
 use swf_tree::shape_records::{Edge, StyleChange};
+use swf_tree::{FillStyle, LineStyle, Shape as SwfShape, ShapeRecord, ShapeStyles, Vector2D};
 
 #[derive(Debug, Clone)]
 pub struct Shape {
@@ -136,7 +136,11 @@ impl ShapeDecoder {
         }
         let (style, segments) = (segment_set.style, segment_set.segments);
         let path = segments_to_path(segments);
-        paths.push(StyledPath { path, fill: Some(style), line: None });
+        paths.push(StyledPath {
+          path,
+          fill: Some(style),
+          line: None,
+        });
       }
       for segment_set in lines.into_iter() {
         if segment_set.segments.is_empty() {
@@ -144,7 +148,11 @@ impl ShapeDecoder {
         }
         let (style, segments) = (segment_set.style, segment_set.segments);
         let path = segments_to_path(segments);
-        paths.push(StyledPath { path, fill: None, line: Some(style) });
+        paths.push(StyledPath {
+          path,
+          fill: None,
+          line: Some(style),
+        });
       }
     }
     Shape { paths }
@@ -172,14 +180,30 @@ struct StyleLayerBuilder {
 
 impl StyleLayerBuilder {
   pub fn new(styles: &ShapeStyles) -> Self {
-    let fills: Vec<SegmentSet<FillStyle>> = styles.fill.iter()
-      .map(|style| SegmentSet { style: style.clone(), segments: VecDeque::new() })
+    let fills: Vec<SegmentSet<FillStyle>> = styles
+      .fill
+      .iter()
+      .map(|style| SegmentSet {
+        style: style.clone(),
+        segments: VecDeque::new(),
+      })
       .collect();
-    let lines: Vec<SegmentSet<LineStyle>> = styles.line.iter()
-      .map(|style| SegmentSet { style: style.clone(), segments: VecDeque::new() })
+    let lines: Vec<SegmentSet<LineStyle>> = styles
+      .line
+      .iter()
+      .map(|style| SegmentSet {
+        style: style.clone(),
+        segments: VecDeque::new(),
+      })
       .collect();
 
-    Self { fills, lines, left_fill: 0, right_fill: 0, line_fill: 0 }
+    Self {
+      fills,
+      lines,
+      left_fill: 0,
+      right_fill: 0,
+      line_fill: 0,
+    }
   }
 
   pub fn add_segment(&mut self, segment: Segment) {
@@ -195,7 +219,10 @@ impl StyleLayerBuilder {
   }
 
   pub fn build(self) -> StyleLayer {
-    StyleLayer { fills: self.fills, lines: self.lines }
+    StyleLayer {
+      fills: self.fills,
+      lines: self.lines,
+    }
   }
 
   pub fn set_left_fill(&mut self, id: usize) -> () {
@@ -236,6 +263,10 @@ impl Segment {
   }
 
   pub fn reverse(&self) -> Self {
-    Self { start: self.end, end: self.start, control: self.control }
+    Self {
+      start: self.end,
+      end: self.start,
+      control: self.control,
+    }
   }
 }

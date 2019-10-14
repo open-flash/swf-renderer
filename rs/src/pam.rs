@@ -1,9 +1,9 @@
 use crate::renderer::Image;
 
-pub fn write_pam<W>(
-  writer: &mut W,
-  image: &Image,
-) -> ::std::io::Result<()> where W: ::std::io::Write {
+pub fn write_pam<W>(writer: &mut W, image: &Image) -> ::std::io::Result<()>
+where
+  W: ::std::io::Write,
+{
   let bytes_per_pixel: usize = 4;
   let bytes_per_row: usize = image.meta.width * bytes_per_pixel;
 

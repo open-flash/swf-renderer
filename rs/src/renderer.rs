@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers};
 use swf_tree::FillStyle;
 
-use crate::{decode_shape};
+use crate::decode_shape;
 use crate::swf_renderer::Vertex;
 
 /// Structure holding all the shape and morph-shape definitions in a
@@ -42,19 +42,22 @@ impl ShapeStore {
       };
 
       // Compute the tessellation.
-      tessellator.tessellate_path(
-        &path.path,
-        &FillOptions::default(),
-        &mut BuffersBuilder::new(&mut mesh, |vertex: FillVertex| {
-          Vertex {
+      tessellator
+        .tessellate_path(
+          &path.path,
+          &FillOptions::default(),
+          &mut BuffersBuilder::new(&mut mesh, |vertex: FillVertex| Vertex {
             position: [vertex.position.x, vertex.position.y, 0.0],
             color,
-          }
-        }),
-      ).unwrap();
+          }),
+        )
+        .unwrap();
     }
 
-    let shape_symbol = GfxShapeSymbol {bounds: tag.bounds, mesh};
+    let shape_symbol = GfxShapeSymbol {
+      bounds: tag.bounds,
+      mesh,
+    };
     let old = self.shapes.insert(id, GfxSymbol::Shape(shape_symbol));
     debug_assert!(old.is_none());
     id

@@ -1,31 +1,38 @@
 #![allow(dead_code)]
 
-use gfx_hal::Backend;
-use gfx_hal::Instance;
+use crate::swf_renderer::{Stage, SwfRenderer};
+use gfx_hal::adapter::{Adapter, Gpu, PhysicalDevice};
 use gfx_hal::command::CommandBuffer;
 use gfx_hal::device::Device;
-use gfx_hal::adapter::{Adapter, Gpu, PhysicalDevice};
-use gfx_hal::queue::family::QueueFamily;
-use gfx_hal::pool::CommandPool;
-use gfx_hal::image::{Layout, Extent};
+use gfx_hal::format::{ChannelType, Format};
 use gfx_hal::image::Access as ImageAccess;
+use gfx_hal::image::{Extent, Layout};
 use gfx_hal::pass;
+use gfx_hal::pool::CommandPool;
 #[allow(unused_imports)]
 use gfx_hal::pso;
+use gfx_hal::pso::{PipelineStage, Rect, Viewport};
+use gfx_hal::queue::family::QueueFamily;
 use gfx_hal::queue::{CommandQueue, QueueGroup};
-use gfx_hal::window::{Surface, SwapchainConfig};
-use std::borrow::Borrow;
-use gfx_hal::window::PresentationSurface;
-use log::{debug, info, warn};
-use crate::swf_renderer::{SwfRenderer, Stage};
-use std::mem::ManuallyDrop;
-use gfx_hal::pso::{PipelineStage, Viewport, Rect};
 use gfx_hal::window::Extent2D;
-use gfx_hal::format::{Format, ChannelType};
+use gfx_hal::window::PresentationSurface;
+use gfx_hal::window::{Surface, SwapchainConfig};
+use gfx_hal::Backend;
+use gfx_hal::Instance;
+use log::{debug, info, warn};
+use std::borrow::Borrow;
+use std::mem::ManuallyDrop;
 
 const QUEUE_COUNT: usize = 1;
-const DEFAULT_EXTENT2D: Extent2D = Extent2D { width: 640, height: 480 };
-const DEFAULT_EXTENT: Extent = Extent { width: DEFAULT_EXTENT2D.width, height: DEFAULT_EXTENT2D.height, depth: 1 };
+const DEFAULT_EXTENT2D: Extent2D = Extent2D {
+  width: 640,
+  height: 480,
+};
+const DEFAULT_EXTENT: Extent = Extent {
+  width: DEFAULT_EXTENT2D.width,
+  height: DEFAULT_EXTENT2D.height,
+  depth: 1,
+};
 const DEFAULT_COLOR_FORMAT: Format = Format::Rgba8Srgb;
 
 pub struct WebRenderer<B: Backend> {
@@ -48,34 +55,36 @@ pub struct WebRenderer<B: Backend> {
 //  qf.queue_type().supports_graphics() && qf.max_queues() >= QUEUE_COUNT
 //}
 
-fn find_graphics_queue_family<'a, B: Backend>(adapter: &'a Adapter<B>, surface: &B::Surface) -> Option<&'a B::QueueFamily> {
-  adapter
-    .queue_families
-    .iter()
-    .find(|qf| {
-      let surf: bool = surface.supports_queue_family(qf);
-      let graph: bool = qf.queue_type().supports_graphics() && qf.max_queues() >= QUEUE_COUNT;
-      surf && graph
-    })
+fn find_graphics_queue_family<'a, B: Backend>(
+  adapter: &'a Adapter<B>,
+  surface: &B::Surface,
+) -> Option<&'a B::QueueFamily> {
+  adapter.queue_families.iter().find(|qf| {
+    let surf: bool = surface.supports_queue_family(qf);
+    let graph: bool = qf.queue_type().supports_graphics() && qf.max_queues() >= QUEUE_COUNT;
+    surf && graph
+  })
 }
 
 impl<B: Backend> WebRenderer<B> {
-  pub fn get_adapter<I: Instance<Backend=B>>(instance: &I, surface: &B::Surface) -> Option<Adapter<B>> {
-    instance.enumerate_adapters().into_iter()
+  pub fn get_adapter<I: Instance<Backend = B>>(instance: &I, surface: &B::Surface) -> Option<Adapter<B>> {
+    instance
+      .enumerate_adapters()
+      .into_iter()
       .find(|a| find_graphics_queue_family::<B>(a, surface).is_some())
   }
 
   pub fn new(mut adapter: Adapter<B>, mut surface: B::Surface) -> WebRenderer<B> {
-//    let memory_types = adapter.physical_device.memory_properties().memory_types;
-//    let limits = adapter.physical_device.limits();
+    //    let memory_types = adapter.physical_device.memory_properties().memory_types;
+    //    let limits = adapter.physical_device.limits();
 
     let memories = adapter.physical_device.memory_properties();
     debug!("{:?}", memories);
     let limits = adapter.physical_device.limits();
     debug!("{:?}", limits);
 
-    let family: &B::QueueFamily = find_graphics_queue_family(&adapter, &surface)
-      .expect("Failed to find queue family with graphics support");
+    let family: &B::QueueFamily =
+      find_graphics_queue_family(&adapter, &surface).expect("Failed to find queue family with graphics support");
 
     let gpu: Gpu<B> = unsafe {
       adapter
@@ -89,33 +98,36 @@ impl<B: Backend> WebRenderer<B> {
 
     let command_pool = unsafe {
       device
-        .create_command_pool(queue_group.family, gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL)
+        .create_command_pool(
+          queue_group.family,
+          gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL,
+        )
         .expect("Failed to create command pool")
     };
 
-//    let set_layout = unsafe {
-//      device
-//        .create_descriptor_set_layout(
-//          &[
-//            pso::DescriptorSetLayoutBinding {
-//              binding: 0,
-//              ty: pso::DescriptorType::SampledImage,
-//              count: 1,
-//              stage_flags: ShaderStageFlags::FRAGMENT,
-//              immutable_samplers: false,
-//            },
-//            pso::DescriptorSetLayoutBinding {
-//              binding: 1,
-//              ty: pso::DescriptorType::Sampler,
-//              count: 1,
-//              stage_flags: ShaderStageFlags::FRAGMENT,
-//              immutable_samplers: false,
-//            },
-//          ],
-//          &[],
-//        )
-//        .expect("Can't create descriptor set layout")
-//    };
+    //    let set_layout = unsafe {
+    //      device
+    //        .create_descriptor_set_layout(
+    //          &[
+    //            pso::DescriptorSetLayoutBinding {
+    //              binding: 0,
+    //              ty: pso::DescriptorType::SampledImage,
+    //              count: 1,
+    //              stage_flags: ShaderStageFlags::FRAGMENT,
+    //              immutable_samplers: false,
+    //            },
+    //            pso::DescriptorSetLayoutBinding {
+    //              binding: 1,
+    //              ty: pso::DescriptorType::Sampler,
+    //              count: 1,
+    //              stage_flags: ShaderStageFlags::FRAGMENT,
+    //              immutable_samplers: false,
+    //            },
+    //          ],
+    //          &[],
+    //        )
+    //        .expect("Can't create descriptor set layout")
+    //    };
 
     let (caps, formats, _present_modes) = surface.compatibility(&mut adapter.physical_device);
     info!("formats: {:?}", formats);
@@ -158,20 +170,14 @@ impl<B: Backend> WebRenderer<B> {
         preserves: &[],
       };
 
-      let dependencies = [
-        pass::SubpassDependency {
-          passes: pass::SubpassRef::External..pass::SubpassRef::Pass(0),
-          stages: PipelineStage::COLOR_ATTACHMENT_OUTPUT..PipelineStage::COLOR_ATTACHMENT_OUTPUT,
-          accesses: ImageAccess::empty()..(ImageAccess::COLOR_ATTACHMENT_READ | ImageAccess::COLOR_ATTACHMENT_WRITE),
-        },
-      ];
+      let dependencies = [pass::SubpassDependency {
+        passes: pass::SubpassRef::External..pass::SubpassRef::Pass(0),
+        stages: PipelineStage::COLOR_ATTACHMENT_OUTPUT..PipelineStage::COLOR_ATTACHMENT_OUTPUT,
+        accesses: ImageAccess::empty()..(ImageAccess::COLOR_ATTACHMENT_READ | ImageAccess::COLOR_ATTACHMENT_WRITE),
+      }];
 
       let render_pass = device
-        .create_render_pass(
-          &attachments,
-          &[subpass],
-          &dependencies,
-        )
+        .create_render_pass(&attachments, &[subpass], &dependencies)
         .expect("Failed to create render pass");
 
       render_pass
@@ -214,7 +220,8 @@ impl<B: Backend> WebRenderer<B> {
     info!("Got surface image");
 
     let framebuffer: B::Framebuffer = unsafe {
-      let framebuffer = self.device
+      let framebuffer = self
+        .device
         .create_framebuffer(
           &self.render_pass,
           std::iter::once(surface_image.borrow()),
@@ -229,10 +236,18 @@ impl<B: Backend> WebRenderer<B> {
       let mut command_buffer: B::CommandBuffer = self.command_pool.allocate_one(gfx_hal::command::Level::Primary);
       command_buffer.begin_primary(gfx_hal::command::CommandBufferFlags::ONE_TIME_SUBMIT);
 
-      command_buffer.set_viewports(0, &[Viewport {
-        rect: Rect { x: 0, y: 0, w: 640, h: 480 },
-        depth: 0.0..1.0,
-      }]);
+      command_buffer.set_viewports(
+        0,
+        &[Viewport {
+          rect: Rect {
+            x: 0,
+            y: 0,
+            w: 640,
+            h: 480,
+          },
+          depth: 0.0..1.0,
+        }],
+      );
 
       let color_f32: [f32; 4] = [
         f32::from(stage.background_color.r) / 255.0,
@@ -242,8 +257,10 @@ impl<B: Backend> WebRenderer<B> {
       ];
 
       let clear_values = [
-        gfx_hal::command::ClearValue { color: gfx_hal::command::ClearColor { float32: color_f32 } },
-//        gfx_hal::command::ClearValue { depth_stencil: gfx_hal::command::ClearDepthStencil { depth: 1.0, stencil: 0 } },
+        gfx_hal::command::ClearValue {
+          color: gfx_hal::command::ClearColor { float32: color_f32 },
+        },
+        //        gfx_hal::command::ClearValue { depth_stencil: gfx_hal::command::ClearDepthStencil { depth: 1.0, stencil: 0 } },
       ];
       command_buffer.begin_render_pass(
         &self.render_pass,
@@ -259,7 +276,10 @@ impl<B: Backend> WebRenderer<B> {
       let cmd_fence = self.device.create_fence(false).expect("Failed to create fence");
       cmd_queue.submit_without_semaphores(Some(&command_buffer), Some(&cmd_fence));
       cmd_queue.present_surface(&mut self.surface, surface_image, None);
-      self.device.wait_for_fence(&cmd_fence, core::u64::MAX).expect("Failed to wait for fence");
+      self
+        .device
+        .wait_for_fence(&cmd_fence, core::u64::MAX)
+        .expect("Failed to wait for fence");
       self.device.destroy_fence(cmd_fence);
     }
 
@@ -282,24 +302,23 @@ impl<B: Backend> SwfRenderer for WebRenderer<B> {
 impl<B: Backend> Drop for WebRenderer<B> {
   fn drop(&mut self) -> () {
     unsafe {
-      self.device
-        .wait_idle()
-        .expect("Failed to wait for device to be idle");
+      self.device.wait_idle().expect("Failed to wait for device to be idle");
 
-//      for (_, mesh) in self.shape_meshes.drain() {
-//        destroy_buffer(&self.device, ManuallyDrop::into_inner(mesh.indices));
-//        destroy_buffer(&self.device, ManuallyDrop::into_inner(mesh.vertices));
-//      }
-//
-//      self.device.destroy_framebuffer(ManuallyDrop::into_inner(read(&self.framebuffer)));
-//      self.device.destroy_render_pass(ManuallyDrop::into_inner(read(&self.render_pass)));
-//
-//      self.device.destroy_image_view(ManuallyDrop::into_inner(read(&self.depth_image_view)));
-//      destroy_image(&self.device, ManuallyDrop::into_inner(read(&self.depth_image)));
-//      self.device.destroy_image_view(ManuallyDrop::into_inner(read(&self.color_image_view)));
-//      destroy_image(&self.device, ManuallyDrop::into_inner(read(&self.color_image)));
+      //      for (_, mesh) in self.shape_meshes.drain() {
+      //        destroy_buffer(&self.device, ManuallyDrop::into_inner(mesh.indices));
+      //        destroy_buffer(&self.device, ManuallyDrop::into_inner(mesh.vertices));
+      //      }
+      //
+      //      self.device.destroy_framebuffer(ManuallyDrop::into_inner(read(&self.framebuffer)));
+      //      self.device.destroy_render_pass(ManuallyDrop::into_inner(read(&self.render_pass)));
+      //
+      //      self.device.destroy_image_view(ManuallyDrop::into_inner(read(&self.depth_image_view)));
+      //      destroy_image(&self.device, ManuallyDrop::into_inner(read(&self.depth_image)));
+      //      self.device.destroy_image_view(ManuallyDrop::into_inner(read(&self.color_image_view)));
+      //      destroy_image(&self.device, ManuallyDrop::into_inner(read(&self.color_image)));
 
-      self.device
+      self
+        .device
         .destroy_command_pool(ManuallyDrop::take(&mut self.command_pool));
     }
   }
