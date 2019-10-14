@@ -3,9 +3,10 @@
 use crate::asset::{ClientAssetStore, MorphShapeId, ShapeId};
 use crate::stage::Stage;
 use crate::swf_renderer::SwfRenderer;
+use core::iter;
 use gfx_hal::adapter::{Adapter, Gpu, PhysicalDevice};
-use gfx_hal::command::CommandBuffer;
 use gfx_hal::command;
+use gfx_hal::command::CommandBuffer;
 use gfx_hal::device::Device;
 use gfx_hal::format::{ChannelType, Format};
 use gfx_hal::image::Access as ImageAccess;
@@ -22,12 +23,11 @@ use gfx_hal::window::{Extent2D, PresentMode, SurfaceCapabilities, SwapImageIndex
 use gfx_hal::window::{Surface, SwapchainConfig};
 use gfx_hal::Backend;
 use gfx_hal::Instance;
-use log::{debug, info, warn};
+use log::{debug, warn};
 use std::borrow::Borrow;
+use std::convert::TryFrom;
 use std::mem::ManuallyDrop;
 use swf_tree::tags::{DefineMorphShape, DefineShape};
-use std::convert::TryFrom;
-use core::iter;
 
 const QUEUE_COUNT: usize = 1;
 const DEFAULT_EXTENT: Extent2D = Extent2D {
@@ -103,7 +103,11 @@ unsafe fn create_swapchain<B: Backend>(
   let config = SwapchainConfig::from_caps(&caps, format, extent);
   debug!("{:?}", config);
 
-  let preferred_frames_in_flight: SwapImageIndex = if config.present_mode == PresentMode::Mailbox { 3 } else { 2 };
+  let preferred_frames_in_flight: SwapImageIndex = if config.present_mode == PresentMode::Mailbox {
+    3
+  } else {
+    2
+  };
   let frames_in_flight = SwapImageIndex::min(
     *caps.image_count.end(),
     SwapImageIndex::max(*caps.image_count.start(), preferred_frames_in_flight),
@@ -157,7 +161,10 @@ impl<B: Backend> GfxRenderer<B> {
       let submission_complete_fence: B::Fence = device.create_fence(true).expect("Failed to create fence");
       let mut command_pool: B::CommandPool = unsafe {
         device
-          .create_command_pool(queue_group.family, gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL)
+          .create_command_pool(
+            queue_group.family,
+            gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL,
+          )
           .expect("Failed to create command pool")
       };
       let command_buffer: B::CommandBuffer = command_pool.allocate_one(command::Level::Primary);
@@ -235,8 +242,6 @@ impl<B: Backend> GfxRenderer<B> {
       }
     };
 
-    info!("Got surface image");
-
     let framebuffer: B::Framebuffer = unsafe {
       let framebuffer = self
         .device
@@ -252,15 +257,24 @@ impl<B: Backend> GfxRenderer<B> {
 
     // Compute index into frame resource ring buffer.
     // TODO Refactor conversion
-    let frame_resource_idx: SwapImageIndex = SwapImageIndex::try_from(self.frame).unwrap() % self.swapchain.frames_in_flight;
+    let frame_resource_idx: SwapImageIndex =
+      SwapImageIndex::try_from(self.frame).unwrap() % self.swapchain.frames_in_flight;
     let frame: &mut FrameState<B> = &mut self.frames[usize::try_from(frame_resource_idx).unwrap()];
 
     unsafe {
-      self.device.wait_for_fence(&frame.submission_complete_fence, core::u64::MAX).expect("Failed to wait for fence");
-      self.device.reset_fence(&frame.submission_complete_fence).expect("Failed to reset fence");
+      self
+        .device
+        .wait_for_fence(&frame.submission_complete_fence, core::u64::MAX)
+        .expect("Failed to wait for fence");
+      self
+        .device
+        .reset_fence(&frame.submission_complete_fence)
+        .expect("Failed to reset fence");
       frame.command_pool.reset(false);
 
-      frame.command_buffer.begin_primary(gfx_hal::command::CommandBufferFlags::ONE_TIME_SUBMIT);
+      frame
+        .command_buffer
+        .begin_primary(gfx_hal::command::CommandBufferFlags::ONE_TIME_SUBMIT);
 
       frame.command_buffer.set_viewports(
         0,
@@ -282,11 +296,9 @@ impl<B: Backend> GfxRenderer<B> {
         1.0,
       ];
 
-      let clear_values = [
-        gfx_hal::command::ClearValue {
-          color: gfx_hal::command::ClearColor { float32: color_f32 },
-        },
-      ];
+      let clear_values = [gfx_hal::command::ClearValue {
+        color: gfx_hal::command::ClearColor { float32: color_f32 },
+      }];
       frame.command_buffer.begin_render_pass(
         &self.render_pass,
         &framebuffer,
@@ -295,6 +307,7 @@ impl<B: Backend> GfxRenderer<B> {
         gfx_hal::command::SubpassContents::Inline,
       );
 
+      frame.command_buffer.end_render_pass();
       frame.command_buffer.finish();
 
       let cmd_queue: &mut B::CommandQueue = &mut self.queue_group.queues[0];
@@ -303,12 +316,13 @@ impl<B: Backend> GfxRenderer<B> {
         wait_semaphores: None,
         signal_semaphores: iter::once(&frame.submission_complete_semaphore),
       };
-      cmd_queue.submit(
-        submission,
-        Some(&frame.submission_complete_fence),
-      );
+      cmd_queue.submit(submission, Some(&frame.submission_complete_fence));
       cmd_queue
-        .present_surface(&mut self.surface, surface_image, Some(&frame.submission_complete_semaphore))
+        .present_surface(
+          &mut self.surface,
+          surface_image,
+          Some(&frame.submission_complete_semaphore),
+        )
         .unwrap();
       self
         .device
@@ -356,6 +370,10 @@ impl<B: Backend> Drop for GfxRenderer<B> {
       //      destroy_image(&self.device, ManuallyDrop::into_inner(read(&self.depth_image)));
       //      self.device.destroy_image_view(ManuallyDrop::into_inner(read(&self.color_image_view)));
       //      destroy_image(&self.device, ManuallyDrop::into_inner(read(&self.color_image)));
+
+      self
+        .device
+        .destroy_render_pass(ManuallyDrop::take(&mut self.render_pass));
 
       for frame in self.frames.drain(..) {
         self.device.destroy_command_pool(frame.command_pool);
