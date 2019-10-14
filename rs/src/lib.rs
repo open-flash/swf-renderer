@@ -1,9 +1,9 @@
 #![feature(manually_drop_take)]
 #![allow(dead_code)]
 
+pub use crate::gfx_renderer::GfxRenderer;
 #[cfg(target_arch = "wasm32")]
 use crate::swf_renderer::Stage;
-pub use crate::web_renderer::WebRenderer;
 pub use decoder::shape_decoder::{decode_shape, Shape, StyledPath};
 #[cfg(target_arch = "wasm32")]
 use gfx_backend_gl as back;
@@ -16,12 +16,12 @@ pub mod asset;
 pub mod stage;
 
 mod gfx;
+mod gfx_renderer;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod headless_renderer;
 pub mod pam;
 pub mod renderer;
 pub mod swf_renderer;
-mod web_renderer;
 pub(crate) mod decoder {
   pub(crate) mod shape_decoder;
 }
@@ -37,8 +37,8 @@ pub fn wasm_start() {
   log::info!("Start");
   let window = back::Window;
   let surface = back::Surface::from_window(&window);
-  let adapter = WebRenderer::get_adapter(&surface, &surface).expect("Failed to find a GPU adapter supporting graphics");
-  let mut renderer: WebRenderer<back::Backend> = WebRenderer::new(adapter, surface);
+  let adapter = GfxRenderer::get_adapter(&surface, &surface).expect("Failed to find a GPU adapter supporting graphics");
+  let mut renderer: GfxRenderer<back::Backend> = GfxRenderer::new(adapter, surface);
   log::info!("Created renderer");
   let stage: Stage = Stage {
     background_color: StraightSRgba8 {

@@ -1,12 +1,14 @@
 #![allow(dead_code)]
 
+use crate::asset::{ClientAssetStore, MorphShapeId, ShapeId};
+use crate::stage::Stage;
 use crate::swf_renderer::SwfRenderer;
 use gfx_hal::adapter::{Adapter, Gpu, PhysicalDevice};
 use gfx_hal::command::CommandBuffer;
 use gfx_hal::device::Device;
 use gfx_hal::format::{ChannelType, Format};
 use gfx_hal::image::Access as ImageAccess;
-use gfx_hal::image::{Extent, Layout};
+use gfx_hal::image::Layout;
 use gfx_hal::pass;
 use gfx_hal::pool::CommandPool;
 #[allow(unused_imports)]
@@ -14,40 +16,33 @@ use gfx_hal::pso;
 use gfx_hal::pso::{PipelineStage, Rect, Viewport};
 use gfx_hal::queue::family::QueueFamily;
 use gfx_hal::queue::{CommandQueue, QueueGroup};
-use gfx_hal::window::Extent2D;
 use gfx_hal::window::PresentationSurface;
+use gfx_hal::window::{Extent2D, PresentMode, SurfaceCapabilities, SwapImageIndex};
 use gfx_hal::window::{Surface, SwapchainConfig};
 use gfx_hal::Backend;
 use gfx_hal::Instance;
 use log::{debug, info, warn};
 use std::borrow::Borrow;
 use std::mem::ManuallyDrop;
-use crate::stage::Stage;
-use crate::asset::{ClientAssetStore, ShapeId, MorphShapeId};
-use swf_tree::tags::{DefineShape, DefineMorphShape};
+use swf_tree::tags::{DefineMorphShape, DefineShape};
 
 const QUEUE_COUNT: usize = 1;
-const DEFAULT_EXTENT2D: Extent2D = Extent2D {
+const DEFAULT_EXTENT: Extent2D = Extent2D {
   width: 640,
   height: 480,
 };
-const DEFAULT_EXTENT: Extent = Extent {
-  width: DEFAULT_EXTENT2D.width,
-  height: DEFAULT_EXTENT2D.height,
-  depth: 1,
-};
 const DEFAULT_COLOR_FORMAT: Format = Format::Rgba8Srgb;
 
-pub struct WebRenderer<B: Backend> {
+pub struct GfxRenderer<B: Backend> {
   pub stage: Option<Stage>,
 
   pub device: B::Device,
   pub queue_group: QueueGroup<B>,
   pub command_pool: ManuallyDrop<B::CommandPool>,
   pub surface: B::Surface,
+  swapchain: SwapchainState,
 
   pub memories: gfx_hal::adapter::MemoryProperties,
-  pub color_format: gfx_hal::format::Format,
 
   pub render_pass: ManuallyDrop<B::RenderPass>,
   // Current frame count
@@ -69,7 +64,62 @@ fn find_graphics_queue_family<'a, B: Backend>(
   })
 }
 
-impl<B: Backend> WebRenderer<B> {
+struct SwapchainState {
+  format: Format,
+  extent: Extent2D,
+  frames_in_flight: SwapImageIndex,
+}
+
+/// If the swapchain is not created, create it. Otherwise reset it.
+unsafe fn create_swapchain<B: Backend>(
+  device: &B::Device,
+  physical_device: &B::PhysicalDevice,
+  surface: &mut B::Surface,
+) -> SwapchainState {
+  let (caps, formats, supported_present_modes): (SurfaceCapabilities, Option<Vec<Format>>, Vec<PresentMode>) =
+    surface.compatibility(physical_device);
+
+  let present_mode: PresentMode = {
+    const PREFERRED_MODES: [PresentMode; 2] = [PresentMode::Mailbox, PresentMode::Fifo];
+    PREFERRED_MODES
+      .iter()
+      .cloned()
+      .find(|pm| supported_present_modes.contains(pm))
+      .expect("Failed to negotiate present mode")
+  };
+
+  let format = formats.map_or(DEFAULT_COLOR_FORMAT, |formats| {
+    formats
+      .iter()
+      .find(|format| format.base_format().1 == ChannelType::Srgb)
+      .map(|format| *format)
+      .unwrap_or(formats[0])
+  });
+
+  let extent: Extent2D = caps.current_extent.unwrap_or(DEFAULT_EXTENT);
+
+  let mut swapchain_config = SwapchainConfig::from_caps(&caps, format, extent);
+  swapchain_config.present_mode = present_mode;
+  debug!("{:?}", swapchain_config);
+
+  let preferred_frames_in_flight: SwapImageIndex = if present_mode == PresentMode::Mailbox { 3 } else { 2 };
+  let frames_in_flight = SwapImageIndex::min(
+    *caps.image_count.end(),
+    SwapImageIndex::max(*caps.image_count.start(), preferred_frames_in_flight),
+  );
+
+  surface
+    .configure_swapchain(&device, swapchain_config)
+    .expect("Failed to configure swapchain");
+
+  SwapchainState {
+    format,
+    frames_in_flight,
+    extent,
+  }
+}
+
+impl<B: Backend> GfxRenderer<B> {
   pub fn get_adapter<I: Instance<Backend = B>>(instance: &I, surface: &B::Surface) -> Option<Adapter<B>> {
     instance
       .enumerate_adapters()
@@ -77,14 +127,13 @@ impl<B: Backend> WebRenderer<B> {
       .find(|a| find_graphics_queue_family::<B>(a, surface).is_some())
   }
 
-  pub fn new(mut adapter: Adapter<B>, mut surface: B::Surface) -> WebRenderer<B> {
-    //    let memory_types = adapter.physical_device.memory_properties().memory_types;
-    //    let limits = adapter.physical_device.limits();
-
+  pub fn new(adapter: Adapter<B>, mut surface: B::Surface) -> GfxRenderer<B> {
     let memories = adapter.physical_device.memory_properties();
     debug!("{:?}", memories);
     let limits = adapter.physical_device.limits();
     debug!("{:?}", limits);
+    let surface_compat = surface.compatibility(&adapter.physical_device);
+    debug!("{:?}", surface_compat);
 
     let family: &B::QueueFamily =
       find_graphics_queue_family(&adapter, &surface).expect("Failed to find queue family with graphics support");
@@ -132,29 +181,11 @@ impl<B: Backend> WebRenderer<B> {
     //        .expect("Can't create descriptor set layout")
     //    };
 
-    let (caps, formats, _present_modes) = surface.compatibility(&mut adapter.physical_device);
-    info!("formats: {:?}", formats);
-
-    let color_format = formats.map_or(DEFAULT_COLOR_FORMAT, |formats| {
-      formats
-        .iter()
-        .find(|format| format.base_format().1 == ChannelType::Srgb)
-        .map(|format| *format)
-        .unwrap_or(formats[0])
-    });
-
-    let swap_config = SwapchainConfig::from_caps(&caps, color_format, DEFAULT_EXTENT2D);
-    info!("{:?}", swap_config);
-
-    unsafe {
-      surface
-        .configure_swapchain(&device, swap_config)
-        .expect("Can't configure swapchain");
-    };
+    let swapchain: SwapchainState = unsafe { create_swapchain::<B>(&device, &adapter.physical_device, &mut surface) };
 
     let render_pass: B::RenderPass = unsafe {
       let attachment: pass::Attachment = pass::Attachment {
-        format: Some(color_format),
+        format: Some(swapchain.format),
         samples: 1,
         ops: pass::AttachmentOps {
           load: pass::AttachmentLoadOp::Clear,
@@ -186,18 +217,20 @@ impl<B: Backend> WebRenderer<B> {
       render_pass
     };
 
-    WebRenderer {
+    GfxRenderer {
       stage: None,
       device,
       queue_group,
       command_pool: ManuallyDrop::new(command_pool),
       surface,
+      swapchain,
       memories,
-      color_format,
       render_pass: ManuallyDrop::new(render_pass),
       frame: 0,
     }
   }
+
+  fn refresh_swapchain(&mut self) {}
 
   fn draw(&mut self) -> () {
     let stage: &Stage = match &self.stage {
@@ -207,8 +240,6 @@ impl<B: Backend> WebRenderer<B> {
         return;
       }
     };
-
-    info!("Has stage: {:?}", &stage);
 
     let surface_image = unsafe {
       match self.surface.acquire_image(std::u64::MAX) {
@@ -228,7 +259,7 @@ impl<B: Backend> WebRenderer<B> {
         .create_framebuffer(
           &self.render_pass,
           std::iter::once(surface_image.borrow()),
-          DEFAULT_EXTENT,
+          self.swapchain.extent.to_extent(),
         )
         .expect("Failed to create framebuffer");
 
@@ -268,7 +299,7 @@ impl<B: Backend> WebRenderer<B> {
       command_buffer.begin_render_pass(
         &self.render_pass,
         &framebuffer,
-        DEFAULT_EXTENT.rect(),
+        self.swapchain.extent.to_extent().rect(),
         clear_values.iter(),
         gfx_hal::command::SubpassContents::Inline,
       );
@@ -278,7 +309,9 @@ impl<B: Backend> WebRenderer<B> {
       let cmd_queue: &mut B::CommandQueue = &mut self.queue_group.queues[0];
       let cmd_fence = self.device.create_fence(false).expect("Failed to create fence");
       cmd_queue.submit_without_semaphores(Some(&command_buffer), Some(&cmd_fence));
-      cmd_queue.present_surface(&mut self.surface, surface_image, None).unwrap();
+      cmd_queue
+        .present_surface(&mut self.surface, surface_image, None)
+        .unwrap();
       self
         .device
         .wait_for_fence(&cmd_fence, core::u64::MAX)
@@ -294,15 +327,14 @@ impl<B: Backend> WebRenderer<B> {
   }
 }
 
-impl<B: Backend> SwfRenderer for WebRenderer<B> {
+impl<B: Backend> SwfRenderer for GfxRenderer<B> {
   fn render(&mut self, stage: Stage) -> () {
-    info!("Set stage: {:?}", &stage);
     self.stage = Some(stage);
     self.draw();
   }
 }
 
-impl<B: Backend> ClientAssetStore for WebRenderer<B> {
+impl<B: Backend> ClientAssetStore for GfxRenderer<B> {
   fn register_shape(&mut self, _tag: &DefineShape) -> ShapeId {
     ShapeId(0)
   }
@@ -312,7 +344,7 @@ impl<B: Backend> ClientAssetStore for WebRenderer<B> {
   }
 }
 
-impl<B: Backend> Drop for WebRenderer<B> {
+impl<B: Backend> Drop for GfxRenderer<B> {
   fn drop(&mut self) -> () {
     unsafe {
       self.device.wait_idle().expect("Failed to wait for device to be idle");
@@ -329,6 +361,8 @@ impl<B: Backend> Drop for WebRenderer<B> {
       //      destroy_image(&self.device, ManuallyDrop::into_inner(read(&self.depth_image)));
       //      self.device.destroy_image_view(ManuallyDrop::into_inner(read(&self.color_image_view)));
       //      destroy_image(&self.device, ManuallyDrop::into_inner(read(&self.color_image)));
+
+      self.surface.unconfigure_swapchain(&self.device);
 
       self
         .device

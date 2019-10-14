@@ -1191,6 +1191,7 @@ dependencies = [
  "console_error_panic_hook 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "console_log 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "gfx-backend-gl 0.3.0 (git+https://github.com/gfx-rs/gfx.git?rev=8c8c3cd0da39fc64aeac6fb1bb5d5864bb33d2df)",
+ "gfx-backend-vulkan 0.3.0 (git+https://github.com/gfx-rs/gfx.git?rev=8c8c3cd0da39fc64aeac6fb1bb5d5864bb33d2df)",
  "gfx-hal 0.3.0 (git+https://github.com/gfx-rs/gfx.git?rev=8c8c3cd0da39fc64aeac6fb1bb5d5864bb33d2df)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lyon 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",

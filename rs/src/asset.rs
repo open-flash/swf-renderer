@@ -1,4 +1,4 @@
-use swf_tree::tags::{DefineShape, DefineMorphShape};
+use swf_tree::tags::{DefineMorphShape, DefineShape};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ShapeId(pub usize);

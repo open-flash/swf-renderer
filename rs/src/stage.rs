@@ -1,5 +1,5 @@
+use crate::asset::{MorphShapeId, ShapeId};
 use swf_tree::StraightSRgba8;
-use crate::asset::{ShapeId, MorphShapeId};
 
 /// Represents a stage state
 #[derive(Debug, Clone)]

@@ -1,10 +1,10 @@
 use ::gfx_backend_vulkan as back;
-use swf_renderer::stage::{Stage, DisplayPrimitive, StoredShape, Matrix2D};
 use swf_renderer::asset::ClientAssetStore;
+use swf_renderer::stage::{DisplayPrimitive, Matrix2D, Stage, StoredShape};
+use swf_renderer::GfxRenderer;
 use swf_renderer::SwfRenderer;
-use swf_renderer::WebRenderer;
-use swf_tree::StraightSRgba8;
 use swf_tree::tags::DefineShape;
+use swf_tree::StraightSRgba8;
 
 fn main() {
   let args: Vec<String> = std::env::args().collect();
@@ -35,11 +35,11 @@ fn main() {
     let window = wb.build(&event_loop).unwrap();
     let instance = back::Instance::create("ofl-swf-renderer", 1).expect("Failed to create instance");
     let surface = instance.create_surface(&window).expect("Failed to create surface");
-    let adapter = WebRenderer::get_adapter(&instance, &surface).expect("Failed to find adapter with graphics support");
+    let adapter = GfxRenderer::get_adapter(&instance, &surface).expect("Failed to find adapter with graphics support");
     // Return `window` so it is not dropped: dropping it invalidates `surface`.
     (window, adapter, surface)
   };
-  let mut renderer: WebRenderer<back::Backend> = WebRenderer::new(adapter, surface);
+  let mut renderer: GfxRenderer<back::Backend> = GfxRenderer::new(adapter, surface);
   let shape_id = renderer.register_shape(&tag);
 
   event_loop.run(move |event, _, control_flow| {
@@ -50,10 +50,10 @@ fn main() {
         winit::event::WindowEvent::CloseRequested => *control_flow = winit::event_loop::ControlFlow::Exit,
         winit::event::WindowEvent::KeyboardInput {
           input:
-          winit::event::KeyboardInput {
-            virtual_keycode: Some(winit::event::VirtualKeyCode::Escape),
-            ..
-          },
+            winit::event::KeyboardInput {
+              virtual_keycode: Some(winit::event::VirtualKeyCode::Escape),
+              ..
+            },
           ..
         } => *control_flow = winit::event_loop::ControlFlow::Exit,
         winit::event::WindowEvent::Resized(dims) => {
@@ -69,12 +69,10 @@ fn main() {
             b: 0,
             a: 255,
           },
-          display_root: vec![
-            DisplayPrimitive::Shape(StoredShape {
-              id: shape_id,
-              matrix: Matrix2D::default()
-            })
-          ],
+          display_root: vec![DisplayPrimitive::Shape(StoredShape {
+            id: shape_id,
+            matrix: Matrix2D::default(),
+          })],
         };
         renderer.render(stage);
       }
