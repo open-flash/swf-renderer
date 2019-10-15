@@ -1,16 +1,8 @@
-#![feature(manually_drop_take)]
+#![feature(const_fn, manually_drop_take)]
 #![allow(dead_code)]
 
 pub use crate::gfx_renderer::GfxRenderer;
-#[cfg(target_arch = "wasm32")]
-use crate::swf_renderer::Stage;
 pub use decoder::shape_decoder::{decode_shape, Shape, StyledPath};
-#[cfg(target_arch = "wasm32")]
-use gfx_backend_gl as back;
-#[cfg(target_arch = "wasm32")]
-use swf_tree::StraightSRgba8;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 
 pub mod asset;
 pub mod stage;
@@ -29,28 +21,7 @@ pub(crate) mod decoder {
 pub use swf_renderer::SwfRenderer;
 
 #[cfg(target_arch = "wasm32")]
-#[wasm_bindgen(start)]
-pub fn wasm_start() {
-  std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-  console_log::init_with_level(log::Level::Debug).unwrap();
-
-  log::info!("Start");
-  let window = back::Window;
-  let surface = back::Surface::from_window(&window);
-  let adapter = GfxRenderer::get_adapter(&surface, &surface).expect("Failed to find a GPU adapter supporting graphics");
-  let mut renderer: GfxRenderer<back::Backend> = GfxRenderer::new(adapter, surface);
-  log::info!("Created renderer");
-  let stage: Stage = Stage {
-    background_color: StraightSRgba8 {
-      r: 255,
-      g: 0,
-      b: 0,
-      a: 255,
-    },
-  };
-  renderer.render(stage);
-  log::info!("End");
-}
+mod wasm;
 
 #[cfg(test)]
 mod renderer_tests {

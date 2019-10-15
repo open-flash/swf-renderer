@@ -1193,6 +1193,7 @@ dependencies = [
  "gfx-backend-gl 0.3.0 (git+https://github.com/gfx-rs/gfx.git?rev=8c8c3cd0da39fc64aeac6fb1bb5d5864bb33d2df)",
  "gfx-backend-vulkan 0.3.0 (git+https://github.com/gfx-rs/gfx.git?rev=8c8c3cd0da39fc64aeac6fb1bb5d5864bb33d2df)",
  "gfx-hal 0.3.0 (git+https://github.com/gfx-rs/gfx.git?rev=8c8c3cd0da39fc64aeac6fb1bb5d5864bb33d2df)",
+ "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lyon 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "nalgebra-glm 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",

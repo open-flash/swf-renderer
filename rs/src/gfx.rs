@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![macro_use]
 
+#![allow(unused_macros)]
 /// Returns the offset of the field `field` in the struct `ty`
 macro_rules! offset_of {
   ($ty:ty, $field:ident) => {{
