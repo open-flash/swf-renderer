@@ -31,14 +31,6 @@ mod renderer_tests {
   use crate::renderer::DisplayItem;
   use ::swf_tree::tags::DefineShape;
   use ::test_generator::test_resources;
-  use gfx_hal::adapter::{Adapter, PhysicalDevice};
-  use gfx_hal::command::CommandBuffer;
-  use gfx_hal::device::Device;
-  use gfx_hal::pool::CommandPool;
-  use gfx_hal::pso::DescriptorPool;
-  use gfx_hal::queue::{CommandQueue, QueueFamily};
-  use gfx_hal::window::{Surface, Swapchain};
-  use gfx_hal::Backend;
   use gfx_hal::Instance;
   use std::io::Write;
   use std::path::Path;

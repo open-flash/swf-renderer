@@ -57,7 +57,7 @@ fn is_compatible_queue_familiy<B: GfxBackend>(qf: &B::QueueFamily) -> bool {
 }
 
 impl<B: GfxBackend> HeadlessGfxRenderer<B> {
-  pub fn new<I: gfx_hal::Instance<Backend = B>>(
+  pub fn new<I: gfx_hal::Instance<B>>(
     instance: &I,
     width: usize,
     height: usize,
@@ -93,8 +93,8 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
 
     let memories = adapter.physical_device.memory_properties();
     let color_format = gfx_hal::format::Format::Rgba8Unorm;
-    let depth_format = get_supported_depth_format::<I::Backend>(&adapter.physical_device)
-      .ok_or("Failed to find supported depth format")?;
+    let depth_format =
+      get_supported_depth_format::<B>(&adapter.physical_device).ok_or("Failed to find supported depth format")?;
 
     let command_pool = unsafe {
       device
@@ -170,6 +170,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
             start: gfx_hal::image::Access::MEMORY_READ,
             end: gfx_hal::image::Access::COLOR_ATTACHMENT_READ | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE,
           },
+          flags: gfx_hal::memory::Dependencies::empty(),
         },
         gfx_hal::pass::SubpassDependency {
           passes: std::ops::Range {
@@ -184,6 +185,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
             start: gfx_hal::image::Access::COLOR_ATTACHMENT_READ | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE,
             end: gfx_hal::image::Access::MEMORY_READ,
           },
+          flags: gfx_hal::memory::Dependencies::empty(),
         },
       ];
 
@@ -521,7 +523,7 @@ impl<B: GfxBackend> HeadlessGfxRenderer<B> {
       ];
 
       let input_assembler: gfx_hal::pso::InputAssemblerDesc =
-        gfx_hal::pso::InputAssemblerDesc::new(gfx_hal::Primitive::TriangleList);
+        gfx_hal::pso::InputAssemblerDesc::new(gfx_hal::pso::Primitive::TriangleList);
 
       let blender = {
         let blend_state: Option<gfx_hal::pso::BlendState> = Some(gfx_hal::pso::BlendState {

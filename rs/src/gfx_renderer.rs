@@ -11,6 +11,7 @@ use gfx_hal::device::Device;
 use gfx_hal::format::{ChannelType, Format};
 use gfx_hal::image::Access as ImageAccess;
 use gfx_hal::image::Layout;
+use gfx_hal::memory::Dependencies as MemDependencies;
 use gfx_hal::pass;
 use gfx_hal::pool::CommandPool;
 #[allow(unused_imports)]
@@ -19,7 +20,7 @@ use gfx_hal::pso::{PipelineStage, Rect, Viewport};
 use gfx_hal::queue::family::QueueFamily;
 use gfx_hal::queue::{CommandQueue, QueueGroup, Submission};
 use gfx_hal::window::PresentationSurface;
-use gfx_hal::window::{Extent2D, PresentMode, SurfaceCapabilities, SwapImageIndex};
+use gfx_hal::window::{Extent2D, PresentMode, SwapImageIndex};
 use gfx_hal::window::{Surface, SwapchainConfig};
 use gfx_hal::Backend;
 use gfx_hal::Instance;
@@ -87,8 +88,8 @@ unsafe fn create_swapchain<B: Backend>(
   physical_device: &B::PhysicalDevice,
   surface: &mut B::Surface,
 ) -> SwapchainState {
-  let (caps, formats, _supported_present_modes): (SurfaceCapabilities, Option<Vec<Format>>, Vec<PresentMode>) =
-    surface.compatibility(physical_device);
+  let caps = surface.capabilities(physical_device);
+  let formats = surface.supported_formats(physical_device);
 
   let format = formats.map_or(DEFAULT_COLOR_FORMAT, |formats| {
     formats
@@ -103,7 +104,7 @@ unsafe fn create_swapchain<B: Backend>(
   let config = SwapchainConfig::from_caps(&caps, format, extent);
   debug!("{:?}", config);
 
-  let preferred_frames_in_flight: SwapImageIndex = if config.present_mode == PresentMode::Mailbox {
+  let preferred_frames_in_flight: SwapImageIndex = if config.present_mode == PresentMode::MAILBOX {
     3
   } else {
     2
@@ -125,7 +126,7 @@ unsafe fn create_swapchain<B: Backend>(
 }
 
 impl<B: Backend> GfxRenderer<B> {
-  pub fn get_adapter<I: Instance<Backend = B>>(instance: &I, surface: &B::Surface) -> Option<Adapter<B>> {
+  pub fn get_adapter<I: Instance<B>>(instance: &I, surface: &B::Surface) -> Option<Adapter<B>> {
     instance
       .enumerate_adapters()
       .into_iter()
@@ -137,8 +138,6 @@ impl<B: Backend> GfxRenderer<B> {
     debug!("{:?}", memories);
     let limits = adapter.physical_device.limits();
     debug!("{:?}", limits);
-    let surface_compat = surface.compatibility(&adapter.physical_device);
-    debug!("{:?}", surface_compat);
 
     let family: &B::QueueFamily =
       find_graphics_queue_family(&adapter, &surface).expect("Failed to find queue family with graphics support");
@@ -167,7 +166,7 @@ impl<B: Backend> GfxRenderer<B> {
           )
           .expect("Failed to create command pool")
       };
-      let command_buffer: B::CommandBuffer = command_pool.allocate_one(command::Level::Primary);
+      let command_buffer: B::CommandBuffer = unsafe { command_pool.allocate_one(command::Level::Primary) };
       frames.push(FrameState {
         submission_complete_semaphore,
         submission_complete_fence,
@@ -201,6 +200,7 @@ impl<B: Backend> GfxRenderer<B> {
         passes: pass::SubpassRef::External..pass::SubpassRef::Pass(0),
         stages: PipelineStage::COLOR_ATTACHMENT_OUTPUT..PipelineStage::COLOR_ATTACHMENT_OUTPUT,
         accesses: ImageAccess::empty()..(ImageAccess::COLOR_ATTACHMENT_READ | ImageAccess::COLOR_ATTACHMENT_WRITE),
+        flags: MemDependencies::empty(),
       }];
 
       let render_pass = device

@@ -2,12 +2,12 @@ use crate::stage::Stage;
 use crate::swf_renderer::SwfRenderer;
 use crate::GfxRenderer;
 use gfx_backend_gl as back;
-use log::{error, info};
+use lazy_static::lazy_static;
+use log::error;
 use std::collections::HashMap;
+use std::sync::Mutex;
 use swf_tree::StraightSRgba8;
 use wasm_bindgen::prelude::*;
-use std::sync::Mutex;
-use lazy_static::lazy_static;
 
 lazy_static! {
   static ref GLOBAL_RENDERER_STORE: Mutex<RendererStore> = Mutex::new(RendererStore::new());
@@ -26,9 +26,8 @@ impl RendererStore {
   fn add(&mut self, renderer: GfxRenderer<back::Backend>) -> RendererHandle {
     let handle = RendererHandle(self.next);
     self.next += 1;
-    let old: Option<GfxRenderer<back::Backend>> = self.handles
-      .get_or_insert_with(HashMap::new)
-      .insert(handle, renderer);
+    let old: Option<GfxRenderer<back::Backend>> =
+      self.handles.get_or_insert_with(HashMap::new).insert(handle, renderer);
     assert!(old.is_none(), "Adding the same handle multiple times");
     handle
   }
@@ -59,9 +58,8 @@ pub fn wasm_start() {
 ///
 /// Remember to call `destroyRenderer()` to free the associated resources.
 #[wasm_bindgen(js_name = createRenderer)]
-pub fn create_renderer() -> RendererHandle {
-  let window = back::Window;
-  let surface = back::Surface::from_window(&window);
+pub fn create_renderer(canvas: web_sys::HtmlCanvasElement) -> RendererHandle {
+  let surface = back::Surface::from_canvas(canvas);
   let adapter = GfxRenderer::get_adapter(&surface, &surface).expect("Failed to find a GPU adapter supporting graphics");
   let renderer: GfxRenderer<back::Backend> = GfxRenderer::new(adapter, surface);
   let mut store = GLOBAL_RENDERER_STORE.lock().expect("Failed to acquire global store");
@@ -84,7 +82,7 @@ pub struct RendererHandle(u64);
 #[wasm_bindgen]
 impl RendererHandle {
   #[wasm_bindgen(js_name = render)]
-  pub fn render(self) -> () {
+  pub fn render(&mut self) -> () {
     self.with_renderer(|r| {
       let stage: Stage = Stage {
         background_color: StraightSRgba8 {
@@ -105,7 +103,7 @@ impl RendererHandle {
     let mut store = GLOBAL_RENDERER_STORE.lock().expect("Failed to acquire global store");
     match store.get_mut(self) {
       None => error!("InvalidRendererHandle"),
-      Some(ref mut renderer) => f(renderer)
+      Some(ref mut renderer) => f(renderer),
     }
   }
 }
